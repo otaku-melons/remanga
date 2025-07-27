@@ -1,29 +1,19 @@
-from Source.Core.Formats.Manga import Branch, Chapter, Manga, Person, Statuses, Types
-from Source.Core.ImagesDownloader import ImagesDownloader
-from Source.Core.Base.MangaParser import MangaParser
+from Source.Core.Base.Formats.Manga import Branch, Chapter, Types
+from Source.Core.Base.Formats.BaseFormat import Person, Statuses
+from Source.Core.Base.Parsers.MangaParser import MangaParser
 
-from dublib.WebRequestor import Protocols, WebConfig, WebLibs, WebRequestor
 from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
+from dublib.Methods.Filesystem import ListDir
+from dublib.WebRequestor import WebRequestor
 from dublib.Polyglot import HTML
+
+from datetime import datetime
+from time import sleep
 
 from skimage.metrics import structural_similarity
 from skimage import io
-from time import sleep
-
+import dateparser
 import cv2
-import os
-
-#==========================================================================================#
-# >>>>> ОПРЕДЕЛЕНИЯ <<<<< #
-#==========================================================================================#
-
-NAME = "remanga"
-SITE = "remanga.org"
-TYPE = Manga
-
-#==========================================================================================#
-# >>>>> ОСНОВНОЙ КЛАСС <<<<< #
-#==========================================================================================#
 
 class Parser(MangaParser):
 	"""Парсер."""
@@ -35,28 +25,15 @@ class Parser(MangaParser):
 	def _InitializeRequestor(self) -> WebRequestor:
 		"""Инициализирует модуль WEB-запросов."""
 
-		Config = WebConfig()
-		Config.select_lib(WebLibs.requests)
-		Config.set_retries_count(self._Settings.common.retries)
-		if self._Settings.custom["token"]: Config.add_header("Authorization", self._Settings.custom["token"])
-		Config.add_header("Referer", f"https://{SITE}/")
-		WebRequestorObject = WebRequestor(Config)
-
-		if self._Settings.proxy.enable: WebRequestorObject.add_proxy(
-			Protocols.HTTPS,
-			host = self._Settings.proxy.host,
-			port = self._Settings.proxy.port,
-			login = self._Settings.proxy.login,
-			password = self._Settings.proxy.password
-		)
+		WebRequestorObject = super()._InitializeRequestor()
+		if self._Settings.custom["token"]: WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
 
 		return WebRequestorObject
 	
 	def _PostInitMethod(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 	
-		self.__CoversRequestor = self._InitializeCoversRequestor()
-		self.__IsPaidChaptersLocked = False
+		self._IsPaidChaptersLocked = False
 
 	#==========================================================================================#
 	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
@@ -69,37 +46,32 @@ class Parser(MangaParser):
 			BranchID = CurrentBranchData["id"]
 			ChaptersCount = CurrentBranchData["count_chapters"]
 			CurrentBranch = Branch(BranchID)
-
-			for BranchPage in range(0, int(ChaptersCount / 100) + 1):
-				Response = self._Requestor.get(f"https://{SITE}/api/titles/chapters/?branch_id={BranchID}&count=100&ordering=-index&page=" + str(BranchPage + 1) + "&user_data=1")
+			PagesCount = int(ChaptersCount / 50) + 1
+			if ChaptersCount % 50: PagesCount += 1
+			
+			for BranchPage in range(1, PagesCount):
+				Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
 
 				if Response.status_code == 200:
-					Data = Response.json["content"]
-					
+					Data = Response.json["results"]
+
 					for CurrentChapter in Data:
 						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
-						Buffer = {
-							"id": CurrentChapter["id"],
-							"volume": str(CurrentChapter["tome"]),
-							"number": CurrentChapter["chapter"],
-							"name": Zerotify(CurrentChapter["name"]),
-							"is_paid": CurrentChapter["is_paid"],
-							"free-publication-date": None,
-							"translators": Translators,
-							"slides": []	
-						}
+						Name = CurrentChapter["name"] if CurrentChapter["name"] != "null" else None
+						Buffer = Chapter(self._SystemObjects)
+						Buffer.set_id(CurrentChapter["id"])
+						Buffer.set_volume(CurrentChapter["tome"])
+						Buffer.set_number(CurrentChapter["chapter"])
+						Buffer.set_name(Name)
+						Buffer.set_is_paid(CurrentChapter["is_paid"])
+						Buffer.set_workers(Translators)
+						if self._Settings.custom["add_free_publication_date"] and Buffer.is_paid: Buffer.add_extra_data("free-publication-date", CurrentChapter["pub_date"])
 						
-						if self._Settings.custom["add_free_publication_date"]:
-							if Buffer["is_paid"]: Buffer["free-publication-date"] = CurrentChapter["pub_date"]
-
-						else:
-							del Buffer["free-publication-date"]
-
-						ChapterObject = Chapter(self._SystemObjects)
-						ChapterObject.set_dict(Buffer)
-						CurrentBranch.add_chapter(ChapterObject)
+						CurrentBranch.add_chapter(Buffer)
 
 				else: self._Portals.request_error(Response, "Unable to request chapter.", exception = False)
+
+				if BranchPage < PagesCount: sleep(self._Settings.common.delay)
 
 			self._Title.add_branch(CurrentBranch)	
 
@@ -111,14 +83,14 @@ class Parser(MangaParser):
 
 		Slides = list()
 
-		if chapter.is_paid and self.__IsPaidChaptersLocked:
+		if chapter.is_paid and self._IsPaidChaptersLocked:
 			self._Portals.chapter_skipped(self._Title, chapter)
 			return Slides
 
-		Response = self._Requestor.get(f"https://{SITE}/api/titles/chapters/{chapter.id}/")
+		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/{chapter.id}/")
 		
 		if Response.status_code == 200:
-			Data = Response.json["content"]
+			Data = Response.json
 			Data["pages"] = self.__MergeListOfLists(Data["pages"])
 
 			for SlideIndex in range(len(Data["pages"])):
@@ -133,7 +105,7 @@ class Parser(MangaParser):
 				if not IsFiltered: Slides.append(Buffer)
 
 		elif Response.status_code in [401, 423]:
-			if chapter.is_paid: self.__IsPaidChaptersLocked = True
+			if chapter.is_paid: self._IsPaidChaptersLocked = True
 			self._Portals.chapter_skipped(self._Title, chapter)
 
 		else:
@@ -189,37 +161,17 @@ class Parser(MangaParser):
 	#==========================================================================================#
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
-
-	def _InitializeCoversRequestor(self) -> WebRequestor:
-		"""Инициализирует модуль WEB-запросов обложек."""
-
-		Config = WebConfig()
-		Config.select_lib(WebLibs.requests)
-		Config.set_retries_count(self._Settings.common.retries)
-		Config.requests.enable_proxy_protocol_switching(True)
-		Config.add_header("Referer", f"https://{SITE}/")
-		WebRequestorObject = WebRequestor(Config)
-
-		if self._Settings.proxy.enable: WebRequestorObject.add_proxy(
-			Protocols.HTTPS,
-			host = self._Settings.proxy.host,
-			port = self._Settings.proxy.port,
-			login = self._Settings.proxy.login,
-			password = self._Settings.proxy.password
-		)
-
-		return WebRequestorObject
 	
 	def _CheckForStubs(self) -> bool:
 		"""Проверяет, является ли обложка заглушкой."""
 
-		FiltersDirectories = os.listdir(f"Parsers/{NAME}/Filters")
+		FiltersDirectories = ListDir(f"Parsers/{self._Manifest.name}/Filters")
 
 		for FilterIndex in FiltersDirectories:
-			Patterns = os.listdir(f"Parsers/{NAME}/Filters/{FilterIndex}")
+			Patterns = ListDir(f"Parsers/{self._Manifest.name}/Filters/{FilterIndex}")
 			
 			for Pattern in Patterns:
-				Result = self._CompareImages(f"Parsers/{NAME}/Filters/{FilterIndex}/{Pattern}")
+				Result = self._CompareImages(f"Parsers/{self._Manifest.name}/Filters/{FilterIndex}/{Pattern}")
 				if Result != None and Result < 50.0: return True
 		
 		return False
@@ -236,10 +188,10 @@ class Parser(MangaParser):
 		Page = 1
 		
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{SITE}/api/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
+			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
 			
 			if Response.status_code == 200:
-				PageContent = Response.json["content"]
+				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
 				if not PageContent or pages and Page == pages: IsCollected = True
 				self._Portals.collect_progress_by_page(Page)
@@ -260,20 +212,25 @@ class Parser(MangaParser):
 		"""
 
 		Slugs = list()
-		period *= 3_600_000
+		period *= 3600
 		IsCollected = False
 		Page = 1
-		
+		NowTimestamp = datetime.now().timestamp()
+
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{SITE}/api/titles/last-chapters/?page={Page}&count=30")
+			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/last-chapters/?page={Page}&count=30")
 			
 			if Response.status_code == 200:
-				PageContent = Response.json["content"]
+				PageContent = Response.json["results"]
 
 				for Note in PageContent:
-
-					if not period or Note["upload_date"] <= period:
-						Slugs.append(Note["dir"])
+					UploadTimestamp = dateparser.parse(Note["upload_date"])
+					UploadTimestamp = UploadTimestamp.replace(tzinfo = None).timestamp()
+					Delta = NowTimestamp - UploadTimestamp
+					Delta = int(abs(Delta))
+					
+					if not period or Delta <= period:
+						Slugs.append(Note["title"]["dir"])
 
 					else:
 						Slugs = list(set(Slugs))
@@ -301,7 +258,7 @@ class Parser(MangaParser):
 		Differences = None
 
 		try:
-			Temp = self._SystemObjects.temper.get_parser_temp(NAME)
+			Temp = self._SystemObjects.temper.parser_temp
 			Pattern = io.imread(f"{Temp}/cover")
 			Image = cv2.imread(pattern_path)
 			Pattern = cv2.cvtColor(Pattern, cv2.COLOR_BGR2GRAY)
@@ -330,7 +287,7 @@ class Parser(MangaParser):
 			1: 16,
 			2: 18
 		}
-		Rating = Ratings[data["age_limit"]]
+		Rating = Ratings[data["age_limit"]["id"]]
 
 		return Rating 	
 
@@ -339,11 +296,11 @@ class Parser(MangaParser):
 
 		Covers = list()
 
-		for CoverURI in data["img"].values():
+		for CoverURI in data["cover"].values():
 
 			if CoverURI not in ["/media/None"]:
 				Buffer = {
-					"link": f"https://{SITE}{CoverURI}",
+					"link": f"https://{self._Manifest.site}{CoverURI}",
 					"filename": CoverURI.split("/")[-1]
 				}
 
@@ -354,7 +311,7 @@ class Parser(MangaParser):
 				Covers.append(Buffer)
 
 				if self._Settings.custom["unstub"]:
-					ImagesDownloader(self._SystemObjects, self.__CoversRequestor).temp_image(
+					self._ImagesDownloader.temp_image(
 						url = Buffer["link"],
 						filename = "cover",
 						is_full_filename = True
@@ -362,7 +319,7 @@ class Parser(MangaParser):
 					
 					if self._CheckForStubs():
 						Covers = list()
-						self._Portals.covers_unstubbed(self._Title.slug, self._Title.id)
+						self._Portals.covers_unstubbed(self._Title)
 						break
 
 		return Covers
@@ -398,7 +355,7 @@ class Parser(MangaParser):
 		"""Получает список персонажей."""
 
 		Persons = list()
-		Response = self._Requestor.get(f"https://{SITE}/api/v2/titles/{self._Title.id}/characters/?")
+		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/{self._Title.id}/characters/?")
 		
 		if Response.status_code == 200:
 
@@ -407,8 +364,8 @@ class Parser(MangaParser):
 				Buffer.add_another_name(PersonData["alt_name"])
 
 				if PersonData["cover"]:
-					Buffer.add_image(f"https://{SITE}/media/" + PersonData["cover"]["high"])
-					Buffer.add_image(f"https://{SITE}/media/" + PersonData["cover"]["mid"])
+					Buffer.add_image(f"https://{self._Manifest.site}/media/" + PersonData["cover"]["high"])
+					Buffer.add_image(f"https://{self._Manifest.site}/media/" + PersonData["cover"]["mid"])
 					
 				Buffer.set_description(HTML(PersonData["description"]).plain_text if PersonData["description"] else None)
 				Persons.append(Buffer)
@@ -475,12 +432,12 @@ class Parser(MangaParser):
 	def parse(self):
 		"""Получает основные данные тайтла."""
 
-		Response = self._Requestor.get(f"https://{SITE}/api/titles/{self._Title.slug}/")
+		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/{self._Title.slug}/")
 
 		if Response.status_code == 200:
-			Data = Response.json["content"]
+			Data = Response.json
 			
-			self._Title.set_site(SITE)
+			self._Title.set_site(self._Manifest.site)
 			self._Title.set_id(Data["id"])
 			self._Title.set_content_language("rus")
 			self._Title.set_localized_name(Data["main_name"])
