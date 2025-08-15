@@ -44,16 +44,16 @@ class Parser(MangaParser):
 
 		for CurrentBranchData in data["branches"]:
 			BranchID = CurrentBranchData["id"]
-			ChaptersCount = CurrentBranchData["count_chapters"]
 			CurrentBranch = Branch(BranchID)
-			PagesCount = int(ChaptersCount / 50) + 1
-			if ChaptersCount % 50: PagesCount += 1
-			
-			for BranchPage in range(1, PagesCount):
-				Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
+			BranchPage = 1
 
+			while True:
+				Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
+				BranchPage += 1
+				
 				if Response.status_code == 200:
 					Data = Response.json["results"]
+					if not Data: break
 
 					for CurrentChapter in Data:
 						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
@@ -71,7 +71,7 @@ class Parser(MangaParser):
 
 				else: self._Portals.request_error(Response, "Unable to request chapter.", exception = False)
 
-				if BranchPage < PagesCount: sleep(self._Settings.common.delay)
+				sleep(self._Settings.common.delay)
 
 			self._Title.add_branch(CurrentBranch)	
 

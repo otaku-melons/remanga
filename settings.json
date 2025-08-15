@@ -19,13 +19,7 @@
 		"image_max_height": null,
 		"image_max_width": null
 	},
-	"proxy": {
-		"enable": false,
-		"host": "",
-		"port": "",
-		"login": "",
-		"password": ""
-	},
+	"proxies": [],
 	"custom": {
 		"token": "",
 		"ru_links": false,
