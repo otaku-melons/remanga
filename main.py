@@ -8,6 +8,7 @@ from dublib.WebRequestor import WebRequestor
 from dublib.Polyglot import HTML
 
 from datetime import datetime
+from typing import Iterable
 from time import sleep
 
 from skimage.metrics import structural_similarity
@@ -417,12 +418,18 @@ class Parser(MangaParser):
 		Slides = self.__GetSlides(chapter)
 		for Slide in Slides: chapter.add_slide(Slide["link"], Slide["width"], Slide["height"])
 
-	def collect(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> list[str]:
+	def collect(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Iterable[str]:
 		"""
-		Собирает список тайтлов по заданным параметрам.
-			period – количество часов до текущего момента, составляющее период получения данных;\n
-			filters – строка, описывающая фильтрацию (подробнее в README.md);\n
-			pages – количество запрашиваемых страниц каталога.
+		Собирает список алиасов тайтлов по заданным параметрам.
+
+		:param period: Количество часов до текущего момента, составляющее период получения данных.
+		:type period: int | None
+		:param filters: Строка, описывающая фильтрацию (подробнее в README.md парсера).
+		:type filters: str | None
+		:param pages: Количество запрашиваемых страниц каталога.
+		:type pages: int | None
+		:return: Набор собранных алиасов.
+		:rtype: Iterable[str]
 		"""
 
 		Slugs: list[str] = self._Collect(filters, pages) if not period else self._CollectUpdates(period, pages)
