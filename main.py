@@ -7,13 +7,13 @@ from dublib.Methods.Filesystem import ListDir
 from dublib.WebRequestor import WebRequestor
 from dublib.Polyglot import HTML
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Iterable
 from time import sleep
+import math
 
 from skimage.metrics import structural_similarity
 from skimage import io
-import dateparser
 import cv2
 
 class Parser(MangaParser):
@@ -177,7 +177,7 @@ class Parser(MangaParser):
 		
 		return False
 	
-	def _Collect(self, filters: str | None = None, pages: int | None = None) -> list[str]:
+	def _Collect(self, filters: str | None = None, pages: int | None = None) -> tuple[str]:
 		"""
 		Собирает список тайтлов по заданным параметрам.
 			filters – строка из URI каталога, описывающая параметры запроса;\n
@@ -203,51 +203,46 @@ class Parser(MangaParser):
 				self._Portals.request_error(Response, "Unable to request catalog.")
 				raise Exception("Unable to request catalog.")
 
-		return Slugs
+		return tuple(Slugs)
 	
-	def _CollectUpdates(self, period: int | None = None, pages: int | None = None) -> list[str]:
+	def _CollectUpdates(self, period: int, pages: int | None = None) -> tuple[str]:
 		"""
-		Собирает список обновлений тайтлов по заданным параметрам.
-			period – количество часов до текущего момента, составляющее период получения данных;\n
-			pages – количество запрашиваемых страниц.
+		Собирает алиасы тайтлов, обновлённых за указанный период времени (в часах).
+
+		Часы округляются до суток в большую сторону.
+
+		:param period: Количество часов до текущего момента, составляющее период получения данных.
+		:type period: int
+		:param pages: Количество запрашиваемых страниц.
+		:type pages: int | None
+		:raises Exception: Выбрасывается при невозможности запросить каталог.
+		:return: Последовательность алиасов тайтлов.
+		:rtype: tuple[str]
+		:raises ParsingError: Выбрасывается при активации соответствующего аргумента.
 		"""
 
 		Slugs = list()
-		period *= 3600
 		IsCollected = False
 		Page = 1
-		NowTimestamp = datetime.now().timestamp()
+		Now = datetime.now()
+		TargetDate = Now - timedelta(days = math.ceil(period / 24))
+		Now = Now.strftime("%Y-%m-%d")
+		TargetDate = TargetDate.strftime("%Y-%m-%d")
 
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/last-chapters/?page={Page}&count=30")
+			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDate}&last_chapter_uploaded_lte={Now}&ordering=-score&page={Page}")
 			
 			if Response.status_code == 200:
 				PageContent = Response.json["results"]
-
-				for Note in PageContent:
-					UploadTimestamp = dateparser.parse(Note["upload_date"])
-					UploadTimestamp = UploadTimestamp.replace(tzinfo = None).timestamp()
-					Delta = NowTimestamp - UploadTimestamp
-					Delta = int(abs(Delta))
-					
-					if not period or Delta <= period:
-						Slugs.append(Note["title"]["dir"])
-
-					else:
-						Slugs = list(set(Slugs))
-						IsCollected = True
-						break
-					
+				for Note in PageContent: Slugs.append(Note["dir"])
 				if not PageContent or pages and Page == pages: IsCollected = True
 				self._Portals.collect_progress_by_page(Page)
 				Page += 1
 				sleep(self._Settings.common.delay)
 
-			else:
-				self._Portals.request_error(Response, "Unable to request catalog.")
-				raise Exception("Unable to request catalog.")
+			else: self._Portals.request_error(Response, "Unable to request catalog.")
 
-		return Slugs
+		return tuple(Slugs)
 
 	def _CompareImages(self, pattern_path: str) -> float | None:
 		"""
@@ -432,7 +427,7 @@ class Parser(MangaParser):
 		:rtype: Iterable[str]
 		"""
 
-		Slugs: list[str] = self._Collect(filters, pages) if not period else self._CollectUpdates(period, pages)
+		Slugs: tuple[str] = self._Collect(filters, pages) if not period else self._CollectUpdates(period, pages)
 
 		return Slugs
 	
