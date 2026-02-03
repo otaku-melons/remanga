@@ -59,7 +59,7 @@ class Parser(MangaParser):
 					for CurrentChapter in Data:
 						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
 						Name = CurrentChapter["name"] if CurrentChapter["name"] != "null" else None
-						Buffer = Chapter(self._SystemObjects)
+						Buffer = Chapter(self._SystemObjects, self._Title)
 						Buffer.set_id(CurrentChapter["id"])
 						Buffer.set_volume(CurrentChapter["tome"])
 						Buffer.set_number(CurrentChapter["chapter"])
@@ -74,6 +74,7 @@ class Parser(MangaParser):
 
 				sleep(self._Settings.common.delay)
 
+			CurrentBranch.reverse()
 			self._Title.add_branch(CurrentBranch)	
 
 	def __GetSlides(self, chapter: Chapter) -> list[dict]:
