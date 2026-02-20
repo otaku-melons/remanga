@@ -1,6 +1,7 @@
 from Source.Core.Base.Formats.Manga import Branch, Chapter, Types
 from Source.Core.Base.Formats.BaseFormat import Person, Statuses
 from Source.Core.Base.Parsers.MangaParser import MangaParser
+from Source.Core.Base.Formats.Manga.Elements import Slide
 
 from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
 from dublib.Methods.Filesystem import ListDir
@@ -77,7 +78,7 @@ class Parser(MangaParser):
 			CurrentBranch.reverse()
 			self._Title.add_branch(CurrentBranch)	
 
-	def __GetSlides(self, chapter: Chapter) -> list[dict]:
+	def __GetSlides(self, chapter: Chapter) -> list[Slide]:
 		"""
 		Получает данные о слайдах главы.
 			chapter – данные главы.
@@ -86,7 +87,7 @@ class Parser(MangaParser):
 		Slides = list()
 
 		if chapter.is_paid and self._IsPaidChaptersLocked:
-			self._Portals.chapter_skipped(self._Title, chapter)
+			self._Portals.chapter_skipped(chapter)
 			return Slides
 
 		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/{chapter.id}/")
@@ -95,20 +96,17 @@ class Parser(MangaParser):
 			Data = Response.json
 			Data["pages"] = self.__MergeListOfLists(Data["pages"])
 
-			for SlideIndex in range(len(Data["pages"])):
-				Buffer = {
-					"index": SlideIndex + 1,
-					"link": Data["pages"][SlideIndex]["link"],
-					"width": Data["pages"][SlideIndex]["width"],
-					"height": Data["pages"][SlideIndex]["height"]
-				}
+			for SlideData in Data["pages"]:
+				SlideObject = Slide(self._SystemObjects, chapter)
+				SlideObject.set_link(SlideData["link"])
+				SlideObject.set_resolution(SlideData["width"], SlideData["height"])
 				IsFiltered = False
-				if self._Settings.custom["ru_links"]: Buffer["link"] = self.__RusificateLink(Buffer["link"])
-				if not IsFiltered: Slides.append(Buffer)
+				if self._Settings.custom["ru_links"]: SlideObject.set_link(self.__RusificateLink(SlideObject.link))
+				if not IsFiltered: Slides.append(SlideObject)
 
 		elif Response.status_code in [401, 423]:
 			if chapter.is_paid: self._IsPaidChaptersLocked = True
-			self._Portals.chapter_skipped(self._Title, chapter)
+			self._Portals.chapter_skipped(chapter)
 
 		else:
 			self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
@@ -316,7 +314,7 @@ class Parser(MangaParser):
 					
 					if self._CheckForStubs():
 						Covers = list()
-						self._Portals.covers_unstubbed(self._Title)
+						self._Portals.covers_unstubbed()
 						break
 
 		return Covers
@@ -407,12 +405,14 @@ class Parser(MangaParser):
 	def amend(self, branch: Branch, chapter: Chapter):
 		"""
 		Дополняет главу дайными о слайдах.
-			branch – данные ветви;\n
-			chapter – данные главы.
+
+		:param branch: Данные ветви.
+		:type branch: Branch
+		:param chapter: Данные главы.
+		:type chapter: Chapter
 		"""
 
-		Slides = self.__GetSlides(chapter)
-		for Slide in Slides: chapter.add_slide(Slide["link"], Slide["width"], Slide["height"])
+		chapter.set_slides(self.__GetSlides(chapter))
 
 	def collect(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Iterable[str]:
 		"""
