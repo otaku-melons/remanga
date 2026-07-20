@@ -3,5 +3,5 @@ name: Ruff
 on: [push, pull_request]
 
 jobs:
-  call-ruff:
+  call-workflow:
     uses: otaku-melons/.github/.github/workflows/parser-ruff.yml@main

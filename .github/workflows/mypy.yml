@@ -3,5 +3,5 @@ name: Mypy
 on: [push, pull_request]
 
 jobs:
-  call-mypy:
+  call-workflow:
     uses: otaku-melons/.github/.github/workflows/parser-mypy.yml@main
