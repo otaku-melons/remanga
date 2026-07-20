@@ -64,13 +64,13 @@ class SourceOperator(BaseSourceOperator):
 		Slugs = list()
 		IsCollected = False
 		Page = 1
-		Now = datetime.now()
-		TargetDate = Now - timedelta(days = math.ceil(period / 24))
-		Now = Now.strftime("%Y-%m-%d")
-		TargetDate = TargetDate.strftime("%Y-%m-%d")
+		Now: datetime = datetime.now()
+		TargetDate: datetime = Now - timedelta(days = math.ceil(period / 24))
+		NowString: str = Now.strftime("%Y-%m-%d")
+		TargetDateString: str = TargetDate.strftime("%Y-%m-%d")
 
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDate}&last_chapter_uploaded_lte={Now}&ordering=-score&page={Page}")
+			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDateString}&last_chapter_uploaded_lte={NowString}&ordering=-score&page={Page}")
 			
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]

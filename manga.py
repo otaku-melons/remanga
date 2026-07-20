@@ -146,7 +146,7 @@ class Parser(BaseMangaParser):
 		:rtype: list[ImageData]
 		"""
 
-		Slides = list()
+		Slides: list[ImageData] = list()
 
 		if chapter.is_paid and self._IsPaidChaptersLocked:
 			self.portals.chapter_skipped(chapter)
