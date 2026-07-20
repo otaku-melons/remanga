@@ -1,5 +1,5 @@
 # remanga
-**remanga** – это модуль системы управления парсерами [Melon](https://github.com/otaku-melons/Melon), включающий поддержку источника: [ReManga](https://remanga.org/).
+**remanga** – это модуль системы управления парсерами [Melon](https://github.com/otaku-melons/Melon), включающий поддержку источника: [ReManga](https://remanga.org).
 
 ## Коллекция
 Таблица поддерживаемых ключей для `melon collect`.
@@ -15,7 +15,7 @@ ___
 ```JSON
 "token": ""
 ```
-Токен аккаунта [ReManga](https://remanga.org/).
+Токен аккаунта [ReManga](https://remanga.org).
 ___
 ```JSON
 "add_free_publication_date": false
