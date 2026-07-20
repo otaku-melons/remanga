@@ -1,26 +1,66 @@
-from Source.Core.Base.Formats.BaseFormat import Cover, Person, Statuses
-from Source.Core.Base.Formats.Manga import Branch, Chapter, Types
-from Source.Core.Base.Parsers.MangaParser import MangaParser
-from Source.Core.Base.Formats.Manga.Elements import Slide
+from Source.Core.Base.Formats.Manga import BaseBranch, Chapter, Manga, Types
+from Source.Core.Base.Formats.BaseFormat import ImageData, Person, Statuses
+from Source.Core.Base.Parsers.BaseMangaParser import BaseMangaParser
 
 from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
-from dublib.Methods.Filesystem import ListDir
 
 from dublib.Polyglot import HTML
 
+from typing import cast
 from time import sleep
+import itertools
 
-from skimage.metrics import structural_similarity
-from skimage import io
-import cv2
-
-class Parser(MangaParser):
+class Parser(BaseMangaParser):
 	"""Парсер."""
 
 	#==========================================================================================#
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 	
+	def _Amend(self, branch: BaseBranch, chapter: Chapter):
+		"""
+		Дополняет главу дайными о контенте.
+
+		:param branch: Ветвь.
+		:type branch: BaseBranch
+		:param chapter: Глава.
+		:type chapter: Chapter
+		"""
+
+		chapter.set_slides(self.__GetSlides(chapter))
+
+	def _Parse(self):
+		"""Получает основные данные тайтла."""
+
+		self._Title = cast(Manga, self._Title)
+
+		Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/{self._Title.slug}/")
+
+		if Response.ok and Response.json:
+			Data = Response.json
+			
+			self._Title.set_id(Data["id"])
+			self._Title.set_content_language("rus")
+			self._Title.set_localized_name(Data["main_name"])
+			self._Title.set_eng_name(Data["secondary_name"])
+			self._Title.set_another_names(Data["another_name"].split(" / "))
+			self._GetCovers(Data)
+			self._Title.set_publication_year(Data["issue_year"])
+			self._Title.set_description(self._GetDescription(Data))
+			self._Title.set_age_limit(self._GetAgeLimit(Data))
+			self._Title.set_type(self.__GetType(Data))
+			self._Title.set_status(self._GetStatus(Data))
+			self._Title.set_is_licensed(Data["is_licensed"])
+			self._Title.set_genres(self._GetGenres(Data))
+			self._Title.set_tags(self._GetTags(Data))
+			self._Title.set_persons(self._GetPersons())
+			self.__GetBranches(Data)
+
+		elif Response.status_code == 404:
+			self.portals.title_not_found(self._Title)
+		else:
+			self.portals.request_error(Response, "Unable to request title data.")
+
 	def _PostInitMethod(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 	
@@ -30,82 +70,118 @@ class Parser(MangaParser):
 	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def __GetBranches(self, data: str):
-		"""Получает ветви тайтла."""
+	def __MergeListOfLists(self, list_of_lists: list) -> list:
+		"""
+		Раскрывает вложенные списки внутри списка контейнера.
+
+		:param list_of_lists: Список, который может являться списком списков.
+		:type list_of_lists: list
+		:return: Обработанный список.
+		:rtype: list
+		"""
+		
+		if len(list_of_lists) > 0 and type(list_of_lists[0]) is list:
+			return list(itertools.chain.from_iterable(list_of_lists))
+
+		return list_of_lists
+
+	#==========================================================================================#
+	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
+	#==========================================================================================#
+
+	def __GetBranches(self, data: dict):
+		"""
+		Получает ветви тайтла.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		"""
+
+		self._Title = cast(Manga, self._Title)
 
 		for CurrentBranchData in data["branches"]:
 			BranchID = CurrentBranchData["id"]
-			CurrentBranch = Branch(BranchID)
+			CurrentBranch = BaseBranch(BranchID)
 			BranchPage = 1
 
 			while True:
-				Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
+				Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
 				BranchPage += 1
 				
-				if Response.status_code == 200:
+				if Response.ok and Response.json:
 					Data = Response.json["results"]
 					if not Data: break
 
 					for CurrentChapter in Data:
 						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
-						Name = CurrentChapter["name"] if CurrentChapter["name"] != "null" else None
-						Buffer = Chapter(self._SystemObjects, self._Title)
-						Buffer.set_id(CurrentChapter["id"])
+						Name: str | None = CurrentChapter["name"] if CurrentChapter["name"] != "null" else None
+
+						Buffer = Chapter(self, CurrentChapter["id"])
 						Buffer.set_volume(CurrentChapter["tome"])
 						Buffer.set_number(CurrentChapter["chapter"])
 						Buffer.set_name(Name)
 						Buffer.set_is_paid(CurrentChapter["is_paid"])
 						Buffer.set_workers(Translators)
-						if self._Settings.custom["add_free_publication_date"] and Buffer.is_paid: Buffer.add_extra_data("free-publication-date", CurrentChapter["pub_date"])
+
+						if self.settings.custom["add_free_publication_date"] and Buffer.is_paid:
+							Buffer.add_extra_data("free-publication-date", CurrentChapter["pub_date"])
 						
 						CurrentBranch.add_chapter(Buffer)
 
-				else: self._Portals.request_error(Response, "Unable to request chapter.", exception = False)
+				else:
+					self.portals.request_error(Response, "Unable to request chapter.", exception = False)
 
-				sleep(self._Settings.common.delay)
+				sleep(self.settings.common.delay)
 
 			CurrentBranch.reverse()
 			self._Title.add_branch(CurrentBranch)	
 
-	def __GetSlides(self, chapter: Chapter) -> list[Slide]:
+	def __GetSlides(self, chapter: Chapter) -> list[ImageData]:
 		"""
 		Получает данные о слайдах главы.
-			chapter – данные главы.
+
+		:param chapter: Глава.
+		:type chapter: Chapter
+		:return: Список данных слайдов.
+		:rtype: list[ImageData]
 		"""
 
 		Slides = list()
 
 		if chapter.is_paid and self._IsPaidChaptersLocked:
-			self._Portals.chapter_skipped(chapter)
+			self.portals.chapter_skipped(chapter)
 			return Slides
 
-		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/{chapter.id}/")
+		Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/chapters/{chapter.id}/")
 		
-		if Response.status_code == 200:
+		if Response.ok and Response.json:
 			Data = Response.json
 			Data["pages"] = self.__MergeListOfLists(Data["pages"])
 
 			for SlideData in Data["pages"]:
-				SlideObject = Slide(self._SystemObjects, chapter)
-				SlideObject.set_link(SlideData["link"])
-				SlideObject.set_resolution(SlideData["width"], SlideData["height"])
-				IsFiltered = False
-				if self._Settings.custom["ru_links"]: SlideObject.set_link(self.__RusificateLink(SlideObject.link))
-				if not IsFiltered: Slides.append(SlideObject)
+				Link = SlideData["link"]
+				Width, Height = SlideData["width"], SlideData["height"]
+				Buffer = ImageData(Link)
+				Buffer.create_resolution(Width, Height)
+				Slides.append(Buffer)
 
-		elif Response.status_code in [401, 423]:
+		elif Response.status_code in (401, 423):
 			if chapter.is_paid: self._IsPaidChaptersLocked = True
-			self._Portals.chapter_skipped(chapter)
+			self.portals.chapter_skipped(chapter)
 
 		else:
-			self._Portals.request_error(Response, "Unable to request chapter content.", exception = False)
+			self.portals.request_error(Response, "Unable to request chapter content.", exception = False)
 
 		return Slides
 
-	def __GetType(self, data: dict) -> str:
+	def __GetType(self, data: dict) -> Types | None:
 		"""
-		Получает тип тайтла.
-			data – словарь данных тайтла.
+		Определяет тип тайтла.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		:return: Тип тайтла.
+		:rtype: Types | None
 		"""
 
 		Type = None
@@ -122,81 +198,18 @@ class Parser(MangaParser):
 
 		return Type
 
-	def __MergeListOfLists(self, list_of_lists: list) -> list:
-		"""
-		Объединяет список списков в один список.
-			list_of_lists – список списоков.
-		"""
-		
-		if len(list_of_lists) > 0 and type(list_of_lists[0]) is list:
-			Result = list()
-			for List in list_of_lists: Result.extend(List)
-
-			return Result
-
-		else: return list_of_lists
-
-	def __RusificateLink(self, link: str) -> str:
-		"""
-		Задаёт домен российского сервера для ссылки на слайд.
-			link – ссылка на слайд.
-		"""
-
-		if link.startswith("https://img5.reimg.org"): link = link.replace("https://img5.reimg.org", "https://reimg2.org")
-		link = link.replace("reimg.org", "reimg2.org")
-
-		return link
-
 	#==========================================================================================#
-	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
+	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
 	#==========================================================================================#
-	
-	def _CheckForStubs(self) -> bool:
-		"""Проверяет, является ли обложка заглушкой."""
-
-		FiltersDirectories = ListDir(f"Parsers/{self._Manifest.name}/Filters")
-
-		for FilterIndex in FiltersDirectories:
-			Patterns = ListDir(f"Parsers/{self._Manifest.name}/Filters/{FilterIndex}")
-			
-			for Pattern in Patterns:
-				Result = self._CompareImages(f"Parsers/{self._Manifest.name}/Filters/{FilterIndex}/{Pattern}")
-				if Result != None and Result < 50.0: return True
-		
-		return False
-
-	def _CompareImages(self, pattern_path: str) -> float | None:
-		"""
-		Сравнивает изображение с фильтром.
-			url – ссылка на обложку;\n
-			pattern_path – путь к шаблону.
-		"""
-
-		Differences = None
-
-		try:
-			Temp = self._SystemObjects.temper.parser_temp
-			Pattern = io.imread(f"{Temp}/cover")
-			Image = cv2.imread(pattern_path)
-			Pattern = cv2.cvtColor(Pattern, cv2.COLOR_BGR2GRAY)
-			Image = cv2.cvtColor(Image, cv2.COLOR_BGR2GRAY)
-			PatternHeight, PatternWidth = Pattern.shape
-			ImageHeight, ImageWidth = Image.shape
-		
-			if PatternHeight == ImageHeight and PatternWidth == ImageWidth:
-				(Similarity, Differences) = structural_similarity(Pattern, Image, full = True)
-				Differences = 100.0 - (float(Similarity) * 100.0)
-
-		except Exception as ExceptionData:
-			self._Portals.error("Problem occurred during filtering stubs: \"" + str(ExceptionData) + "\".")		
-			Differences = None
-
-		return Differences
 
 	def _GetAgeLimit(self, data: dict) -> int:
 		"""
-		Получает возрастной рейтинг.
-			data – словарь данных тайтла.
+		Определяет возрастной рейтинг.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		:return: Возрастной рейтинг.
+		:rtype: int
 		"""
 
 		Ratings = {
@@ -216,38 +229,30 @@ class Parser(MangaParser):
 		:type data: dict
 		"""
 
+		self._Title = cast(Manga, self._Title)
 		Covers = list()
 
 		for CoverURI in data["cover"].values():
 
 			if CoverURI not in ("/media/None",):
-				Buffer = Cover(self._SystemObjects, self)
-				Buffer.set_link(f"https://{self._Manifest.site}{CoverURI}")
+				Buffer = ImageData(f"https://{self.manifest.site}{CoverURI}")
 				Covers.append(Buffer)
-
-				if self._Settings.custom["unstub"]:
-					self._ImagesDownloader.temp_image(
-						url = Buffer.link,
-						filename = "cover",
-						is_full_filename = True
-					)
-					
-					if self._CheckForStubs():
-						Covers = list()
-						self._Portals.covers_unstubbed()
-						break
 
 		if Covers: self._Title.set_covers(Covers)
 
 	def _GetDescription(self, data: dict) -> str | None:
 		"""
-		Получает описание.
-			data – словарь данных тайтла.
+		Получает описание тайтла.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		:return: Описание тайтла.
+		:rtype: str | None
 		"""
 
 		Description = None
 
-		if data["description"]:
+		if data.get("description"):
 			Description = HTML(data["description"]).plain_text
 			Description = Description.replace("\r", "").replace("\xa0", " ").strip()
 			Description = RemoveRecurringSubstrings(Description, "\n")
@@ -257,8 +262,12 @@ class Parser(MangaParser):
 
 	def _GetGenres(self, data: dict) -> list[str]:
 		"""
-		Получает список жанров.
-			data – словарь данных тайтла.
+		Получает жанры.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		:return: Список жанров.
+		:rtype: list[str]
 		"""
 
 		Genres = list()
@@ -267,30 +276,41 @@ class Parser(MangaParser):
 		return Genres
 
 	def _GetPersons(self) -> list[Person]:
-		"""Получает список персонажей."""
+		"""
+		Получает список персонажей.
+
+		:return: Список персонажей.
+		:rtype: list[Person]
+		"""
+
+		self._Title = cast(Manga, self._Title)
 
 		Persons = list()
-		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/{self._Title.id}/characters/?")
+		Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/{self._Title.id}/characters/?")
 		
-		if Response.status_code == 200:
+		if Response.ok and Response.json:
 
 			for PersonData in Response.json:
 				Buffer = Person(PersonData["name"])
 				Buffer.add_another_name(PersonData["alt_name"])
 
 				if PersonData["cover"]:
-					Buffer.add_image(f"https://{self._Manifest.site}/media/" + PersonData["cover"]["high"])
-					Buffer.add_image(f"https://{self._Manifest.site}/media/" + PersonData["cover"]["mid"])
+					Buffer.add_image(ImageData(f"https://{self.manifest.site}/media/" + PersonData["cover"]["high"]))
+					Buffer.add_image(ImageData(f"https://{self.manifest.site}/media/" + PersonData["cover"]["mid"]))
 					
 				Buffer.set_description(HTML(PersonData["description"]).plain_text if PersonData["description"] else None)
 				Persons.append(Buffer)
 
 		return Persons
 
-	def _GetStatus(self, data: dict) -> str:
+	def _GetStatus(self, data: dict) -> Statuses | None:
 		"""
-		Получает статус.
-			data – словарь данных тайтла.
+		Определяет статус тайтла.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		:return: Статус.
+		:rtype: Statuses | None
 		"""
 
 		Status = None
@@ -310,55 +330,15 @@ class Parser(MangaParser):
 	def _GetTags(self, data: dict) -> list[str]:
 		"""
 		Получает список тегов.
-			data – словарь данных тайтла.
+
+		:param data: Словарь данных тайтла.
+		:type data: dict
+		:return: Cписок тегов.
+		:rtype: list[str]
 		"""
 
 		Tags = list()
 		for Tag in data["categories"]: Tags.append(Tag["name"])
 
 		return Tags
-
-	#==========================================================================================#
-	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
-	#==========================================================================================#
-
-	def amend(self, branch: Branch, chapter: Chapter):
-		"""
-		Дополняет главу дайными о слайдах.
-
-		:param branch: Данные ветви.
-		:type branch: Branch
-		:param chapter: Данные главы.
-		:type chapter: Chapter
-		"""
-
-		chapter.set_slides(self.__GetSlides(chapter))
 	
-	def parse(self):
-		"""Получает основные данные тайтла."""
-
-		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/{self._Title.slug}/")
-
-		if Response.status_code == 200:
-			Data = Response.json
-			
-			self._Title.set_site(self._Manifest.site)
-			self._Title.set_id(Data["id"])
-			self._Title.set_content_language("rus")
-			self._Title.set_localized_name(Data["main_name"])
-			self._Title.set_eng_name(Data["secondary_name"])
-			self._Title.set_another_names(Data["another_name"].split(" / "))
-			self._GetCovers(Data)
-			self._Title.set_publication_year(Data["issue_year"])
-			self._Title.set_description(self._GetDescription(Data))
-			self._Title.set_age_limit(self._GetAgeLimit(Data))
-			self._Title.set_type(self.__GetType(Data))
-			self._Title.set_status(self._GetStatus(Data))
-			self._Title.set_is_licensed(Data["is_licensed"])
-			self._Title.set_genres(self._GetGenres(Data))
-			self._Title.set_tags(self._GetTags(Data))
-			self._Title.set_persons(self._GetPersons())
-			self.__GetBranches(Data)
-
-		elif Response.status_code == 404: self._Portals.title_not_found(self._Title)
-		else: self._Portals.request_error(Response, "Unable to request title data.")

@@ -3,6 +3,7 @@ from Source.Core.Base.SourceOperator import BaseSourceOperator
 from dublib.WebRequestor import WebRequestor
 
 from datetime import datetime, timedelta
+from typing import Sequence
 from time import sleep
 import math
 
@@ -10,20 +11,19 @@ class SourceOperator(BaseSourceOperator):
 	"""Оператор источника."""
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _Collect(self, filters: str | None = None, pages: int | None = None) -> tuple[str]:
+	def _CollectCatalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
 		"""
-		Собирает список тайтлов по заданным параметрам.
+		Собирает список алиасов тайтлов по заданным параметрам.
 
-		:param filters: Строка из URI каталога, описывающая параметры запроса.
+		:param filters: Строка, описывающая параметры фильтрации.
 		:type filters: str | None
-		:param pages: Количество запрашиваемых страниц.
+		:param pages: Количество запрашиваемых страниц каталога.
 		:type pages: int | None
-		:raises ParsingError: Выбрасывается при ошибке коллекционирования.
-		:return: Набор алиасов собранных тайтлов.
-		:rtype: tuple[str]
+		:return: Набор собранных алиасов.
+		:rtype: list[str]
 		"""
 
 		Slugs = list()
@@ -33,19 +33,19 @@ class SourceOperator(BaseSourceOperator):
 		while not IsCollected:
 			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
 			
-			if Response.status_code == 200:
+			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
 				if not PageContent or pages and Page == pages: IsCollected = True
-				self._Portals.collect_progress_by_page(Page)
+				self.portals.collect_progress_by_page(Page)
 				Page += 1
 				sleep(self._Settings.common.delay)
 
-			else: self._Portals.request_error(Response, "Unable to request catalog.")
+			else: self.portals.request_error(Response, "Unable to request catalog.")
 
-		return tuple(Slugs)
+		return Slugs
 	
-	def _CollectUpdates(self, period: int, pages: int | None = None) -> tuple[str]:
+	def _CollectUpdates(self, period: int, pages: int | None = None) -> list[str]:
 		"""
 		Собирает алиасы тайтлов, обновлённых за указанный период времени (в часах).
 
@@ -57,7 +57,7 @@ class SourceOperator(BaseSourceOperator):
 		:type pages: int | None
 		:raises Exception: Выбрасывается при невозможности запросить каталог.
 		:return: Последовательность алиасов тайтлов.
-		:rtype: tuple[str]
+		:rtype: list[str]
 		:raises ParsingError: Выбрасывается при активации соответствующего аргумента.
 		"""
 
@@ -72,48 +72,47 @@ class SourceOperator(BaseSourceOperator):
 		while not IsCollected:
 			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDate}&last_chapter_uploaded_lte={Now}&ordering=-score&page={Page}")
 			
-			if Response.status_code == 200:
+			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
 				if not PageContent or pages and Page == pages: IsCollected = True
-				self._Portals.collect_progress_by_page(Page)
+				self.portals.collect_progress_by_page(Page)
 				Page += 1
 				sleep(self._Settings.common.delay)
 
-			else: self._Portals.request_error(Response, "Unable to request catalog.")
+			else: self.portals.request_error(Response, "Unable to request catalog.")
 
-		return tuple(Slugs)
+		return Slugs
 
 	#==========================================================================================#
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _InitializeRequestor(self) -> WebRequestor:
-		"""Инициализирует модуль WEB-запросов."""
-
-		WebRequestorObject = super()._InitializeRequestor()
-		if self._Settings.custom["token"]: WebRequestorObject.config.add_header("Authorization", self._Settings.custom["token"])
-
-		return WebRequestorObject
-
-	#==========================================================================================#
-	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
-	#==========================================================================================#
-
-	def collect(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> tuple[str]:
+	def _CollectSlugs(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Sequence[str]:
 		"""
 		Собирает список алиасов тайтлов по заданным параметрам.
 
 		:param period: Количество часов до текущего момента, составляющее период получения данных.
 		:type period: int | None
-		:param filters: Строка, описывающая фильтрацию (подробнее в README.md парсера).
+		:param filters: Строка, описывающая параметры фильтрации.
 		:type filters: str | None
 		:param pages: Количество запрашиваемых страниц каталога.
 		:type pages: int | None
 		:return: Набор собранных алиасов.
-		:rtype: Iterable[str]
+		:rtype: Sequence[str]
 		"""
 
-		Slugs = self._Collect(filters, pages) if not period else self._CollectUpdates(period, pages)
+		return self._CollectCatalog(filters, pages) if not period else self._CollectUpdates(period, pages)
 
-		return Slugs
+	def _InitializeRequestor(self) -> WebRequestor:
+		"""Инициализирует модуль WEB-запросов."""
+
+		WebRequestorObject = super()._InitializeRequestor()
+
+		Token: str | None = self._Settings.custom.get("token")
+
+		if Token:
+			if not Token.lower().startswith("bearer"): Token = f"Bearer {Token}"
+			WebRequestorObject.config.add_header("Authorization", Token)
+
+		return WebRequestorObject

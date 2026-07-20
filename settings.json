@@ -1,29 +1,6 @@
 {
-	"common": {
-		"archives_directory": "",
-		"images_directory": "",
-		"titles_directory": "",
-		"bad_image_stub": "",
-		"pretty": false,
-		"use_id_as_filename": false,
-		"sizing_images": false,
-		"retries": 1,
-		"delay": 1
-	},
-	"filters": {
-		"text_regexs": [],
-		"text_strings": [],
-		"image_md5": [],
-		"image_min_height": 20,
-		"image_min_width": null,
-		"image_max_height": null,
-		"image_max_width": null
-	},
-	"proxies": [],
 	"custom": {
 		"token": "",
-		"ru_links": false,
-		"unstub": false,
 		"add_free_publication_date": false
 	}
 }
