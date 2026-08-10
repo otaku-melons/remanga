@@ -113,6 +113,6 @@ class SourceOperator(BaseSourceOperator):
 
 		if Token:
 			if not Token.lower().startswith("bearer"): Token = f"Bearer {Token}"
-			WebRequestorObject.config.add_header("Authorization", Token)
+			WebRequestorObject.config.headers.set("authorization", Token)
 
 		return WebRequestorObject
