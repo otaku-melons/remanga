@@ -1,14 +1,13 @@
-from Source.Core.Base.Formats.Manga import BaseBranch, Chapter, Manga, Types
-from Source.Core.Base.Formats.BaseFormat import ImageData, Person, Statuses
-from Source.Core.Base.Parsers.BaseMangaParser import BaseMangaParser
-
-from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
-
-from dublib.Polyglot import HTML
-
-from typing import cast
-from time import sleep
 import itertools
+from time import sleep
+from typing import cast
+
+from dublib.functions.data import RemoveRecurringSubstrings, Zerotify
+from dublib.polyglot import HTML
+
+from melon.core.base.formats.base_format import ImageData, Person, Statuses
+from melon.core.base.formats.manga import BaseBranch, Chapter, Manga, Types
+from melon.core.base.parsers.base_manga_parser import BaseMangaParser
 
 class Parser(BaseMangaParser):
 	"""Парсер."""
@@ -34,7 +33,7 @@ class Parser(BaseMangaParser):
 
 		self._Title = cast(Manga, self._Title)
 
-		Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/{self._Title.slug}/")
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self._Title.slug}/")
 
 		if Response.ok and Response.json:
 			Data = Response.json
@@ -105,7 +104,7 @@ class Parser(BaseMangaParser):
 			BranchPage = 1
 
 			while True:
-				Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
+				Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
 				BranchPage += 1
 				
 				if Response.ok and Response.json:
@@ -124,7 +123,7 @@ class Parser(BaseMangaParser):
 						Buffer.set_workers(Translators)
 
 						if self.settings.custom["add_free_publication_date"] and Buffer.is_paid:
-							Buffer.add_extra_data("free-publication-date", CurrentChapter["pub_date"])
+							Buffer.extra_data.set("free-publication-date", CurrentChapter["pub_date"])
 						
 						CurrentBranch.add_chapter(Buffer)
 
@@ -146,13 +145,13 @@ class Parser(BaseMangaParser):
 		:rtype: list[ImageData]
 		"""
 
-		Slides: list[ImageData] = list()
+		Slides: list[ImageData] = []
 
 		if chapter.is_paid and self._IsPaidChaptersLocked:
 			self.portals.chapter_skipped(chapter)
 			return Slides
 
-		Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/chapters/{chapter.id}/")
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/{chapter.id}/")
 		
 		if Response.ok and Response.json:
 			Data = Response.json
@@ -230,12 +229,12 @@ class Parser(BaseMangaParser):
 		"""
 
 		self._Title = cast(Manga, self._Title)
-		Covers = list()
+		Covers = []
 
 		for CoverURI in data["cover"].values():
 
 			if CoverURI not in ("/media/None",):
-				Buffer = ImageData(f"https://{self.manifest.site}{CoverURI}")
+				Buffer = ImageData(f"https://{self.manifest.domain}{CoverURI}")
 				Covers.append(Buffer)
 
 		if Covers: self._Title.set_covers(Covers)
@@ -270,7 +269,7 @@ class Parser(BaseMangaParser):
 		:rtype: list[str]
 		"""
 
-		Genres = list()
+		Genres = []
 		for Genre in data["genres"]: Genres.append(Genre["name"])
 
 		return Genres
@@ -285,8 +284,8 @@ class Parser(BaseMangaParser):
 
 		self._Title = cast(Manga, self._Title)
 
-		Persons = list()
-		Response = self.requestor.get(f"https://{self.manifest.site}/api/v2/titles/{self._Title.id}/characters/?")
+		Persons = []
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self._Title.id}/characters/?")
 		
 		if Response.ok and Response.json:
 
@@ -295,8 +294,8 @@ class Parser(BaseMangaParser):
 				Buffer.add_another_name(PersonData["alt_name"])
 
 				if PersonData["cover"]:
-					Buffer.add_image(ImageData(f"https://{self.manifest.site}/media/" + PersonData["cover"]["high"]))
-					Buffer.add_image(ImageData(f"https://{self.manifest.site}/media/" + PersonData["cover"]["mid"]))
+					Buffer.add_image(ImageData(f"https://{self.manifest.domain}/media/" + PersonData["cover"]["high"]))
+					Buffer.add_image(ImageData(f"https://{self.manifest.domain}/media/" + PersonData["cover"]["mid"]))
 					
 				Buffer.set_description(HTML(PersonData["description"]).plain_text if PersonData["description"] else None)
 				Persons.append(Buffer)
@@ -337,7 +336,7 @@ class Parser(BaseMangaParser):
 		:rtype: list[str]
 		"""
 
-		Tags = list()
+		Tags = []
 		for Tag in data["categories"]: Tags.append(Tag["name"])
 
 		return Tags

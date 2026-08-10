@@ -1,11 +1,11 @@
-from Source.Core.Base.SourceOperator import BaseSourceOperator
-
-from dublib.WebRequestor import WebRequestor
-
-from datetime import datetime, timedelta
-from typing import Sequence
-from time import sleep
 import math
+from datetime import datetime, timedelta
+from time import sleep
+from typing import Sequence
+
+from dublib.web_requestor import WebRequestor
+
+from melon.core.base.source_operator import BaseSourceOperator
 
 class SourceOperator(BaseSourceOperator):
 	"""Оператор источника."""
@@ -26,12 +26,12 @@ class SourceOperator(BaseSourceOperator):
 		:rtype: list[str]
 		"""
 
-		Slugs = list()
+		Slugs = []
 		IsCollected = False
 		Page = 1
 		
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
+			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
 			
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
@@ -61,7 +61,7 @@ class SourceOperator(BaseSourceOperator):
 		:raises ParsingError: Выбрасывается при активации соответствующего аргумента.
 		"""
 
-		Slugs = list()
+		Slugs = []
 		IsCollected = False
 		Page = 1
 		Now: datetime = datetime.now()
@@ -70,7 +70,7 @@ class SourceOperator(BaseSourceOperator):
 		TargetDateString: str = TargetDate.strftime("%Y-%m-%d")
 
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDateString}&last_chapter_uploaded_lte={NowString}&ordering=-score&page={Page}")
+			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDateString}&last_chapter_uploaded_lte={NowString}&ordering=-score&page={Page}")
 			
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
