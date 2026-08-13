@@ -29,6 +29,7 @@ class SourceOperator(BaseSourceOperator):
 		Slugs = []
 		IsCollected = False
 		Page = 1
+		MAX_CATALOG_PAGE = 999
 		
 		while not IsCollected:
 			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?page={Page}&count=30&ordering=-chapter_date&{filters}")
@@ -36,7 +37,12 @@ class SourceOperator(BaseSourceOperator):
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
+
 				if not PageContent or pages and Page == pages: IsCollected = True
+				if Page == MAX_CATALOG_PAGE:
+					self.portals.printer.warning("Last catalog page reached: 999.")
+					IsCollected = True
+				
 				self.portals.collect_progress_by_page(Page)
 				Page += 1
 				sleep(self._Settings.common.delay)
@@ -64,6 +70,7 @@ class SourceOperator(BaseSourceOperator):
 		Slugs = []
 		IsCollected = False
 		Page = 1
+		MAX_CATALOG_PAGE = 999
 		Now: datetime = datetime.now()
 		TargetDate: datetime = Now - timedelta(days = math.ceil(period / 24))
 		NowString: str = Now.strftime("%Y-%m-%d")
@@ -75,7 +82,12 @@ class SourceOperator(BaseSourceOperator):
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
+
 				if not PageContent or pages and Page == pages: IsCollected = True
+				if Page == MAX_CATALOG_PAGE:
+					self.portals.printer.warning("Last catalog page reached: 999.")
+					IsCollected = True
+
 				self.portals.collect_progress_by_page(Page)
 				Page += 1
 				sleep(self._Settings.common.delay)
