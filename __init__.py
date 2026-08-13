@@ -31,8 +31,8 @@ class SourceOperator(BaseSourceOperator):
 		Page = 1
 		
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
-			
+			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?page={Page}&count=30&ordering=-chapter_date&{filters}")
+
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
@@ -116,3 +116,20 @@ class SourceOperator(BaseSourceOperator):
 			WebRequestorObject.config.headers.set("authorization", Token)
 
 		return WebRequestorObject
+
+	def _IsTitleExists(self, slug: str) -> bool | None:
+		"""
+		Проверяет, существует ли тайтл на сервере.
+
+		:param slug: Алиас тайтла.
+		:type slug: str
+		:return: Возвращает статус существования файла на сервере или `None` при невозможности проверки.
+		:rtype: bool | None
+		"""
+
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{slug}/")
+		
+		if Response.ok: return True
+		if Response.status_code == 404: return False
+
+		return None

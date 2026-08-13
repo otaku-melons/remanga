@@ -31,34 +31,32 @@ class Parser(BaseMangaParser):
 	def _Parse(self):
 		"""Получает основные данные тайтла."""
 
-		self._Title = cast(Manga, self._Title)
+		Title = cast(Manga, self.title)
 
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self._Title.slug}/")
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
 
 		if Response.ok and Response.json:
 			Data = Response.json
 			
-			self._Title.set_id(Data["id"])
-			self._Title.set_content_language("rus")
-			self._Title.set_localized_name(Data["main_name"])
-			self._Title.set_eng_name(Data["secondary_name"])
-			self._Title.set_another_names(Data["another_name"].split(" / "))
+			Title.set_id(Data["id"])
+			Title.set_content_language("rus")
+			Title.set_localized_name(Data["main_name"])
+			Title.set_eng_name(Data["secondary_name"])
+			Title.set_another_names(Data["another_name"].split(" / "))
 			self._GetCovers(Data)
-			self._Title.set_publication_year(Data["issue_year"])
-			self._Title.set_description(self._GetDescription(Data))
-			self._Title.set_age_limit(self._GetAgeLimit(Data))
-			self._Title.set_type(self.__GetType(Data))
-			self._Title.set_status(self._GetStatus(Data))
-			self._Title.set_is_licensed(Data["is_licensed"])
-			self._Title.set_genres(self._GetGenres(Data))
-			self._Title.set_tags(self._GetTags(Data))
-			self._Title.set_persons(self._GetPersons())
+			Title.set_publication_year(Data["issue_year"])
+			Title.set_description(self._GetDescription(Data))
+			Title.set_age_limit(self._GetAgeLimit(Data))
+			Title.set_type(self.__GetType(Data))
+			Title.set_status(self._GetStatus(Data))
+			Title.set_is_licensed(Data["is_licensed"])
+			Title.set_genres(self._GetGenres(Data))
+			Title.set_tags(self._GetTags(Data))
+			Title.set_persons(self._GetPersons())
 			self.__GetBranches(Data)
 
-		elif Response.status_code == 404:
-			self.portals.title_not_found(self._Title)
-		else:
-			self.portals.request_error(Response, "Unable to request title data.")
+		elif Response.status_code == 404: self.portals.title_not_found(Title)
+		else: self.portals.request_error(Response, "Unable to request title data.")
 
 	def _PostInitMethod(self):
 		"""Метод, выполняющийся после инициализации объекта."""
@@ -96,7 +94,7 @@ class Parser(BaseMangaParser):
 		:type data: dict
 		"""
 
-		self._Title = cast(Manga, self._Title)
+		Title = cast(Manga, self.title)
 
 		for CurrentBranchData in data["branches"]:
 			BranchID = CurrentBranchData["id"]
@@ -133,7 +131,7 @@ class Parser(BaseMangaParser):
 				sleep(self.settings.common.delay)
 
 			CurrentBranch.reverse()
-			self._Title.add_branch(CurrentBranch)	
+			Title.add_branch(CurrentBranch)	
 
 	def __GetSlides(self, chapter: Chapter) -> list[ImageData]:
 		"""
@@ -228,7 +226,7 @@ class Parser(BaseMangaParser):
 		:type data: dict
 		"""
 
-		self._Title = cast(Manga, self._Title)
+		Title = cast(Manga, self.title)
 		Covers = []
 
 		for CoverURI in data["cover"].values():
@@ -237,7 +235,7 @@ class Parser(BaseMangaParser):
 				Buffer = ImageData(f"https://{self.manifest.domain}{CoverURI}")
 				Covers.append(Buffer)
 
-		if Covers: self._Title.set_covers(Covers)
+		if Covers: Title.set_covers(Covers)
 
 	def _GetDescription(self, data: dict) -> str | None:
 		"""
@@ -282,10 +280,10 @@ class Parser(BaseMangaParser):
 		:rtype: list[Person]
 		"""
 
-		self._Title = cast(Manga, self._Title)
+		Title = cast(Manga, self.title)
 
 		Persons = []
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self._Title.id}/characters/?")
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.id}/characters/?")
 		
 		if Response.ok and Response.json:
 
