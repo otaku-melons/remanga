@@ -14,6 +14,47 @@ class SourceOperator(BaseSourceOperator):
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
+	def _ChekTitleByID(self, slug: str) -> bool | None:
+		"""
+		Проверяет существования тайтла по ID методом попытки добавления в закладки.
+
+		:param slug: Алиас тайтла.
+		:type slug: str
+		:return: Возвращает статус существования файла на сервере или `None` при невозможности проверки.
+		:rtype: bool | None
+		"""
+		
+		TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
+		
+		if TitleID is None:
+			return None
+
+		if not self.settings.custom.get("token"):
+			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
+
+		IsTitleExists: bool | None = None
+		BOOKMARK_TYPE: int = 56251767 # Тип закладки: «Не интересно».
+		Data: dict = {
+			"title": TitleID,
+			"type": BOOKMARK_TYPE
+		}
+		self.settings.common.sleep_delay()
+		Response = self.requestor.post(f"https://{self.manifest.domain}/api/users/bookmarks/", json = Data)
+
+		match Response.status_code:
+
+			case 200 | 400:
+				IsTitleExists = True
+				self.settings.common.sleep_delay()
+				self.requestor.delete(f"https://{self.manifest.domain}/api/users/bookmarks/", json = {"title_id": str(TitleID)})
+
+			case 404:
+				if Response.json:
+					Message: str | None = Response.json.get("msg")
+					if Message == "Тайтл не найден": IsTitleExists = False
+
+		return IsTitleExists
+
 	def _CollectCatalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
 		"""
 		Собирает список алиасов тайтлов по заданным параметрам.
@@ -140,8 +181,11 @@ class SourceOperator(BaseSourceOperator):
 		"""
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{slug}/")
-		
+		IsCheckByBookmarks: bool = bool(self.settings.custom.get("check_by_bookmarks"))
+
 		if Response.ok: return True
-		if Response.status_code == 404: return False
+		if Response.status_code == 404:
+			if IsCheckByBookmarks: return self._ChekTitleByID(slug) is True
+			return False
 
 		return None

@@ -1,6 +1,7 @@
 {
 	"custom": {
 		"token": "",
-		"add_free_publication_date": false
+		"add_free_publication_date": false,
+		"check_by_bookmarks": true
 	}
 }
