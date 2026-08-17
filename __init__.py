@@ -38,12 +38,12 @@ class SourceOperator(BaseSourceOperator):
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
 
+				self.portals.collect_progress_by_page(Page)
 				if not PageContent or pages and Page == pages: IsCollected = True
 				if Page == MAX_CATALOG_PAGE:
 					self.portals.printer.warning("Last catalog page reached: 999.")
 					IsCollected = True
 				
-				self.portals.collect_progress_by_page(Page)
 				Page += 1
 				sleep(self._Settings.common.delay)
 
@@ -83,12 +83,12 @@ class SourceOperator(BaseSourceOperator):
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
 
+				self.portals.collect_progress_by_page(Page)
 				if not PageContent or pages and Page == pages: IsCollected = True
 				if Page == MAX_CATALOG_PAGE:
 					self.portals.printer.warning("Last catalog page reached: 999.")
 					IsCollected = True
-
-				self.portals.collect_progress_by_page(Page)
+				
 				Page += 1
 				sleep(self._Settings.common.delay)
 
