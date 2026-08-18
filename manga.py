@@ -1,4 +1,3 @@
-import itertools
 from time import sleep
 from typing import cast
 
@@ -9,6 +8,9 @@ from melon.core.base.formats.base_format import ImageData, Person, Statuses
 from melon.core.base.formats.manga import BaseBranch, Chapter, Manga, Types
 from melon.core.base.parsers.base_manga_parser import BaseMangaParser
 
+from .extensions import exmanga
+from .functions import MergeLists
+
 class Parser(BaseMangaParser):
 	"""Парсер."""
 
@@ -16,7 +18,7 @@ class Parser(BaseMangaParser):
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 	
-	def _Amend(self, branch: BaseBranch, chapter: Chapter):
+	def _Amend(self, branch: BaseBranch, chapter: Chapter) -> str | None:
 		"""
 		Дополняет главу дайными о контенте.
 
@@ -24,9 +26,22 @@ class Parser(BaseMangaParser):
 		:type branch: BaseBranch
 		:param chapter: Глава.
 		:type chapter: Chapter
+		:return: Дополнительное необязательное сообщение о дополнении.
+		:rtype: str | None
 		"""
 
-		chapter.set_slides(self.__GetSlides(chapter))
+		Slides: list[ImageData] = self.__GetSlides(chapter)
+		Message: str | None = None
+
+		if Slides:
+			FirstSlideLink: str = Slides[0].link
+
+			if FirstSlideLink.startswith("file:") or self.__ExManga.options.domain in FirstSlideLink:
+				Message = "Received from ExManga."
+				
+			chapter.set_slides(self.__GetSlides(chapter))
+
+		return Message
 
 	def _Parse(self):
 		"""Получает основные данные тайтла."""
@@ -63,24 +78,39 @@ class Parser(BaseMangaParser):
 	
 		self._IsPaidChaptersLocked = False
 
+		self.__ExManga = exmanga.Extension(self.source_operator)
+
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ВЗАИМОДЕЙСТВИЯ С РАСШИРЕНИЯМИ <<<<< #
 	#==========================================================================================#
 
-	def __MergeListOfLists(self, list_of_lists: list) -> list:
+	def __TryGetChabterFromExManga(self, chapter_id: int) -> list[ImageData]:
 		"""
-		Раскрывает вложенные списки внутри списка контейнера.
+		Пробует получить слайды главы через расширение **ExManga**.
 
-		:param list_of_lists: Список, который может являться списком списков.
-		:type list_of_lists: list
-		:return: Обработанный список.
-		:rtype: list
+		:param chapter_id: ID главы.
+		:type chapter_id: int
+		:return: Список слайдов главы.
+		:rtype: list[ImageData]
 		"""
 		
-		if len(list_of_lists) > 0 and type(list_of_lists[0]) is list:
-			return list(itertools.chain.from_iterable(list_of_lists))
+		if not self.__ExManga.options.is_enabled: return []
+		Slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
+		if not Slides: return []
+		Title = cast(Manga, self.title)
+		SlidesCound: int = len(Slides)
 
-		return list_of_lists
+		for Index in range(SlidesCound):
+			Slide: ImageData = Slides[Index]
+			Slide, Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
+
+			if Index + 1 != SlidesCound and not Result.is_already_exists: self.settings.common.sleep_delay()
+			
+			if Result.error_message:
+				self.portals.printer.error("Chapter slides downloading failed.")
+				return []
+
+		return Slides
 
 	#==========================================================================================#
 	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
@@ -150,24 +180,30 @@ class Parser(BaseMangaParser):
 			return Slides
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/{chapter.id}/")
-		
+
 		if Response.ok and Response.json:
 			Data = Response.json
-			Data["pages"] = self.__MergeListOfLists(Data["pages"])
+			SlidesData: list[dict] = MergeLists(Data["pages"])
 
-			for SlideData in Data["pages"]:
+			if not SlidesData:
+				Slides = self.__TryGetChabterFromExManga(chapter.id)
+				if Slides: return Slides
+
+				if chapter.is_paid:
+					self._IsPaidChaptersLocked = True
+					self.portals.printer.debug("Paid chapters locked. All will be skipped.")
+
+				self.portals.chapter_skipped(chapter)
+				return []
+			
+			for SlideData in SlidesData:
 				Link = SlideData["link"]
 				Width, Height = SlideData["width"], SlideData["height"]
 				Buffer = ImageData(Link)
 				Buffer.create_resolution(Width, Height)
 				Slides.append(Buffer)
 
-		elif Response.status_code in (401, 423):
-			if chapter.is_paid: self._IsPaidChaptersLocked = True
-			self.portals.chapter_skipped(chapter)
-
-		else:
-			self.portals.request_error(Response, "Unable to request chapter content.", exception = False)
+		else: self.portals.request_error(Response, "Unable to request chapter content.", exception = False)
 
 		return Slides
 

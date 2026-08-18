@@ -3,5 +3,13 @@
 		"token": "",
 		"add_free_publication_date": false,
 		"check_by_bookmarks": true
+	},
+	"extensions": {
+		"exmanga": {
+			"is_enabled": false,
+			"options": {
+				"token": ""
+			}
+		}
 	}
 }
