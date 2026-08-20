@@ -9,7 +9,7 @@ class Options(BaseExtensionOptions):
 	def domain(self) -> str:
 		"""Домен сервера."""
 
-		return self._Data.get("domain") or "exmanga.org"
+		return self.get("domain") or "exmanga.org"
 
 	@property
 	def token(self) -> str | None:

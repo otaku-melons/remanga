@@ -2,7 +2,9 @@ from urllib.parse import urlparse
 
 import orjson
 
+from dublib.exceptions.web_requestor import TokenExpired
 from dublib.web_requestor import WebConfig, WebLibs, WebRequestor
+from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.extensions import BaseExtension
 from melon.core.base.formats.base_format import BaseTitle, ImageData
@@ -91,7 +93,16 @@ class Extension(BaseExtension[Options]):
 		WebRequestorObject.add_proxies(self.source_operator.settings.proxies)
 
 		Token: str | None = self.options.token
-		if Token: Config.headers.add("cookie", self.__GenerateCookies(Token))
+		
+		if Token:
+			Config.headers.add("cookie", self.__GenerateCookies(Token))
+			Authorizator = Bearer()
+
+			try: Authorizator.set_jwt(Token)
+			except TokenExpired: self.portals.authorization_required("ExManga token expired.")
+
+			Config.headers.authorization.set_authorization_method(Authorizator)
+
 		else: self.portals.authorization_required("ExManga extension requires authorization.")
 		
 		return WebRequestorObject
@@ -185,15 +196,18 @@ class Extension(BaseExtension[Options]):
 		ChapterSlidesDirectory = SlidesDirectory / str(chapter_id)
 		ChapterSlidesDirectory.mkdir(exist_ok = True)
 		
-		self.portals.printer.emit(f"Chapter {chapter_id}. Downloading \"{slide.filename}\"… ", end_line = False)
+		if self.system_objects.options.DEBUG:
+			self.portals.printer.emit(f"Chapter <b>{chapter_id}</b>. Downloading \"{slide.filename}\"… ", end_line = False)
 
+		self.requestor.config.headers.authorization.disable()
 		Result = self.__ImagesDownloader.download_image(
 			url = slide.link,
 			directory = ChapterSlidesDirectory,
 			force_mode = force_mode
 		)
 		
-		self.portals.printer.templates.image_downloading_result(Result, show_path = False)
+		if self.system_objects.options.DEBUG:
+			self.portals.printer.templates.image_downloading_result(Result, show_path = False)
 
 		if Result.path: slide.set_link(Result.path.resolve().as_uri())
 		if not slide.resolution: slide.set_resolution(Result.resolution)
@@ -210,8 +224,8 @@ class Extension(BaseExtension[Options]):
 		:rtype: list[ImageData]
 		"""
 
-		Headers: dict[str, str] = {"authorization": f"Bearer {self.options.token}"}
-		Response = self.requestor.get(f"https://{self.options.domain}/api/chapter?id={chapter_id}", headers = Headers)
+		self.requestor.config.headers.authorization.enable()
+		Response = self.requestor.get(f"https://{self.options.domain}/api/chapter?id={chapter_id}")
 		Slides: list[ImageData] = []
 		
 		if Response.ok and Response.json:
@@ -223,7 +237,7 @@ class Extension(BaseExtension[Options]):
 				if Buffer: Slides.append(Buffer)
 
 		elif Response.status_code == 404:
-			self.portals.printer.emit("Slides not found on ExManga server.")
+			self.portals.printer.emit(f"Chapter {chapter_id}. Slides not found on ExManga server.")
 			return []
 
 		else: self.portals.request_error(Response, "Unable check slides on ExManga server.")

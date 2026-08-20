@@ -1,14 +1,16 @@
 from time import sleep
 from typing import cast
 
-from dublib.functions.data import RemoveRecurringSubstrings, Zerotify
+from dublib.functions.data import Zerotify
+from dublib.functions.data.string import RemoveRecurringSubstrings
 from dublib.polyglot import HTML
+from dublib.web_requestor import WebResponse
 
 from melon.core.base.formats.base_format import ImageData, Person, Statuses
 from melon.core.base.formats.manga import BaseBranch, Chapter, Manga, Types
 from melon.core.base.parsers.base_manga_parser import BaseMangaParser
 
-from .extensions import exmanga
+from .extensions import exmanga, slugger
 from .functions import MergeLists
 
 class Parser(BaseMangaParser):
@@ -39,7 +41,7 @@ class Parser(BaseMangaParser):
 			if FirstSlideLink.startswith("file:") or self.__ExManga.options.domain in FirstSlideLink:
 				Message = "Received from ExManga."
 				
-			chapter.set_slides(self.__GetSlides(chapter))
+			chapter.set_slides(Slides)
 
 		return Message
 
@@ -47,8 +49,7 @@ class Parser(BaseMangaParser):
 		"""Получает основные данные тайтла."""
 
 		Title = cast(Manga, self.title)
-
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
+		Response = self._GetTitleData()
 
 		if Response.ok and Response.json:
 			Data = Response.json
@@ -79,38 +80,7 @@ class Parser(BaseMangaParser):
 		self._IsPaidChaptersLocked = False
 
 		self.__ExManga = exmanga.Extension(self.source_operator)
-
-	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ВЗАИМОДЕЙСТВИЯ С РАСШИРЕНИЯМИ <<<<< #
-	#==========================================================================================#
-
-	def __TryGetChabterFromExManga(self, chapter_id: int) -> list[ImageData]:
-		"""
-		Пробует получить слайды главы через расширение **ExManga**.
-
-		:param chapter_id: ID главы.
-		:type chapter_id: int
-		:return: Список слайдов главы.
-		:rtype: list[ImageData]
-		"""
-		
-		if not self.__ExManga.options.is_enabled: return []
-		Slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
-		if not Slides: return []
-		Title = cast(Manga, self.title)
-		SlidesCound: int = len(Slides)
-
-		for Index in range(SlidesCound):
-			Slide: ImageData = Slides[Index]
-			Slide, Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
-
-			if Index + 1 != SlidesCound and not Result.is_already_exists: self.settings.common.sleep_delay()
-			
-			if Result.error_message:
-				self.portals.printer.error("Chapter slides downloading failed.")
-				return []
-
-		return Slides
+		self.__Slugger = slugger.Extension(self.source_operator)
 
 	#==========================================================================================#
 	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
@@ -186,7 +156,7 @@ class Parser(BaseMangaParser):
 			SlidesData: list[dict] = MergeLists(Data["pages"])
 
 			if not SlidesData:
-				Slides = self.__TryGetChabterFromExManga(chapter.id)
+				Slides = self.__TryGetChapterFromExManga(chapter.id)
 				if Slides: return Slides
 
 				if chapter.is_paid:
@@ -230,6 +200,34 @@ class Parser(BaseMangaParser):
 		if SiteType in TypesDeterminations.keys(): Type = TypesDeterminations[SiteType]
 
 		return Type
+
+	def __TryGetChapterFromExManga(self, chapter_id: int) -> list[ImageData]:
+		"""
+		Пробует получить слайды главы через расширение **ExManga**.
+
+		:param chapter_id: ID главы.
+		:type chapter_id: int
+		:return: Список слайдов главы.
+		:rtype: list[ImageData]
+		"""
+		
+		if not self.__ExManga.options.is_enabled: return []
+		Slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
+		if not Slides: return []
+		Title = cast(Manga, self.title)
+		SlidesCound: int = len(Slides)
+
+		for Index in range(SlidesCound):
+			Slide: ImageData = Slides[Index]
+			Slide, Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
+
+			if Index + 1 != SlidesCound and not Result.is_already_exists: self.settings.common.sleep_delay()
+			
+			if Result.error_message:
+				self.portals.printer.error("Chapter slides downloading failed.")
+				return []
+
+		return Slides
 
 	#==========================================================================================#
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
@@ -375,3 +373,29 @@ class Parser(BaseMangaParser):
 
 		return Tags
 	
+	def _GetTitleData(self) -> "WebResponse":
+		"""
+		Запрашивает данные тайтла.
+		
+		Также при ошибке с кодом 404 пытается обновить алиас тайтла, если включено расширение **slugger**.
+
+		:return: Контейнер ответа на запрос.
+		:rtype: WebResponse
+		"""
+
+		Title = cast(Manga, self.title)
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
+
+		if Response.status_code == 404 and self.__Slugger.options.run_on_not_found_error:
+			self.settings.common.sleep_delay()
+
+			if Title.load(Title.slug):
+				self.portals.printer.emit("Loaded local file.")
+			else:
+				return Response
+
+			if self.__Slugger.update_title_slug(Title):
+				self.settings.common.sleep_delay()
+				return self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
+
+		return Response

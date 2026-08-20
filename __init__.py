@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from time import sleep
 from typing import Sequence
 
-from dublib.web_requestor import WebRequestor
+from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.source_operator import BaseSourceOperator
 
@@ -157,19 +157,6 @@ class SourceOperator(BaseSourceOperator):
 
 		return self._CollectCatalog(filters, pages) if not period else self._CollectUpdates(period, pages)
 
-	def _InitializeRequestor(self) -> WebRequestor:
-		"""Инициализирует модуль WEB-запросов."""
-
-		WebRequestorObject = super()._InitializeRequestor()
-
-		Token: str | None = self._Settings.custom.get("token")
-
-		if Token:
-			if not Token.lower().startswith("bearer"): Token = f"Bearer {Token}"
-			WebRequestorObject.config.headers.set("authorization", Token)
-
-		return WebRequestorObject
-
 	def _IsTitleExists(self, slug: str) -> bool | None:
 		"""
 		Проверяет, существует ли тайтл на сервере.
@@ -189,3 +176,17 @@ class SourceOperator(BaseSourceOperator):
 			return False
 
 		return None
+
+	def _SetAuthorizationMethod(self):
+		"""
+		Выполняется после `_InitializeRequestor()` и обёрнут для отлова исключений `TokenExpired`.
+
+		Используется для установки авторизации на основе заголовка _Authorization_.
+		"""
+
+		Token: str | None = self.settings.custom.get("token")
+		if not Token: return
+
+		Authorizator = Bearer()
+		Authorizator.set_token(Token)
+		self.requestor.config.headers.authorization.set_authorization_method(Authorizator)
