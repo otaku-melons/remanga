@@ -1,10 +1,8 @@
-from melon.core.base.extensions import BaseExtension
+from melon.core.base.extensions import BaseExtension, BaseExtensionOptions
 from melon.core.base.formats.base_format import BaseTitle
 from melon.core.structs import TitleDescriptor
 
-from .options import Options
-
-class Extension(BaseExtension[Options]):
+class Extension(BaseExtension[BaseExtensionOptions]):
 	"""Расширение."""
 
 	#==========================================================================================#
@@ -62,7 +60,7 @@ class Extension(BaseExtension[Options]):
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _ReturnOptionsType(self) -> type[Options]:
+	def _ReturnOptionsType(self) -> type[BaseExtensionOptions]:
 		"""
 		Возвращает тип контейнера опций.
 
@@ -70,7 +68,7 @@ class Extension(BaseExtension[Options]):
 		:rtype: type[T]
 		"""
 
-		return Options
+		return BaseExtensionOptions
 
 	#==========================================================================================#
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #

@@ -1,4 +1,3 @@
-from time import sleep
 from typing import cast
 
 from dublib.functions.data import Zerotify
@@ -128,8 +127,6 @@ class Parser(BaseMangaParser):
 				else:
 					self.portals.request_error(Response, "Unable to request chapter.", exception = False)
 
-				sleep(self.settings.common.delay)
-
 			CurrentBranch.reverse()
 			Title.add_branch(CurrentBranch)	
 
@@ -219,9 +216,8 @@ class Parser(BaseMangaParser):
 
 		for Index in range(SlidesCound):
 			Slide: ImageData = Slides[Index]
+			# To-Do: возвращать только результат?
 			Slide, Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
-
-			if Index + 1 != SlidesCound and not Result.is_already_exists: self.settings.common.sleep_delay()
 			
 			if Result.error_message:
 				self.portals.printer.error("Chapter slides downloading failed.")
@@ -386,8 +382,7 @@ class Parser(BaseMangaParser):
 		Title = cast(Manga, self.title)
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
 
-		if Response.status_code == 404 and self.__Slugger.options.run_on_not_found_error:
-			self.settings.common.sleep_delay()
+		if Response.status_code == 404 and self.__Slugger.options.is_enabled:
 
 			if Title.load(Title.slug):
 				self.portals.printer.emit("Loaded local file.")
@@ -395,7 +390,6 @@ class Parser(BaseMangaParser):
 				return Response
 
 			if self.__Slugger.update_title_slug(Title):
-				self.settings.common.sleep_delay()
 				return self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
 
 		return Response

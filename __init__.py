@@ -1,11 +1,12 @@
 import math
 from datetime import datetime, timedelta
-from time import sleep
 from typing import Sequence
 
 from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.source_operator import BaseSourceOperator
+
+from .extensions import id_checker
 
 class SourceOperator(BaseSourceOperator):
 	"""Оператор источника."""
@@ -13,48 +14,6 @@ class SourceOperator(BaseSourceOperator):
 	#==========================================================================================#
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
-
-	def _ChekTitleByID(self, slug: str) -> bool | None:
-		"""
-		Проверяет существования тайтла по ID методом попытки добавления в закладки.
-
-		:param slug: Алиас тайтла.
-		:type slug: str
-		:return: Возвращает статус существования файла на сервере или `None` при невозможности проверки.
-		:rtype: bool | None
-		"""
-		
-		TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
-		
-		if TitleID is None:
-			self.portals.printer.debug("Title ID undefined, skip checkings by bookmark creation.")
-			return None
-
-		if not self.settings.custom.get("token"):
-			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
-
-		IsTitleExists: bool | None = None
-		BOOKMARK_TYPE: int = 56251767 # Тип закладки: «Не интересно».
-		Data: dict = {
-			"title": TitleID,
-			"type": BOOKMARK_TYPE
-		}
-		self.settings.common.sleep_delay()
-		Response = self.requestor.post(f"https://{self.manifest.domain}/api/users/bookmarks/", json = Data)
-
-		match Response.status_code:
-
-			case 200 | 400:
-				IsTitleExists = True
-				self.settings.common.sleep_delay()
-				self.requestor.delete(f"https://{self.manifest.domain}/api/users/bookmarks/", json = {"title_id": str(TitleID)})
-
-			case 404:
-				if Response.json:
-					Message: str | None = Response.json.get("msg")
-					if Message == "Тайтл не найден": IsTitleExists = False
-
-		return IsTitleExists
 
 	def _CollectCatalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
 		"""
@@ -87,7 +46,6 @@ class SourceOperator(BaseSourceOperator):
 					IsCollected = True
 				
 				Page += 1
-				sleep(self._Settings.common.delay)
 
 			else: self.portals.request_error(Response, "Unable to request catalog.")
 
@@ -132,7 +90,6 @@ class SourceOperator(BaseSourceOperator):
 					IsCollected = True
 				
 				Page += 1
-				sleep(self._Settings.common.delay)
 
 			else: self.portals.request_error(Response, "Unable to request catalog.")
 
@@ -169,19 +126,24 @@ class SourceOperator(BaseSourceOperator):
 		"""
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{slug}/")
-
-		if Response.ok:
-			return True
-
+		
+		if Response.ok: return True
 		elif Response.status_code == 404:
-			if bool(self.settings.custom.get("check_by_bookmarks")):
-				return self._ChekTitleByID(slug)
+			if not self.__CheckerByID.options.is_enabled: return False
 
-			return False
+			TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
+			if not TitleID: return False
+
+			return self.__CheckerByID.is_title_exists_by_id(TitleID)
 
 		else: self.portals.request_error(Response, "Failed to check title existing.")
 
 		return None
+
+	def _PostInitMethod(self):
+		"""Метод, выполняющийся после инициализации объекта."""
+
+		self.__CheckerByID = id_checker.Extension(self)
 
 	def _SetAuthorizationMethod(self):
 		"""

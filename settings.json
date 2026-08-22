@@ -10,12 +10,6 @@
 			"options": {
 				"token": ""
 			}
-		},
-		"slugger": {
-			"is_enabled": false,
-			"options": {
-				"run_on_not_found_error": true
-			}
 		}
 	}
 }
