@@ -27,6 +27,7 @@ class SourceOperator(BaseSourceOperator):
 		TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
 		
 		if TitleID is None:
+			self.portals.printer.debug("Title ID undefined, skip checkings by bookmark creation.")
 			return None
 
 		if not self.settings.custom.get("token"):
@@ -168,12 +169,17 @@ class SourceOperator(BaseSourceOperator):
 		"""
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{slug}/")
-		IsCheckByBookmarks: bool = bool(self.settings.custom.get("check_by_bookmarks"))
 
-		if Response.ok: return True
-		if Response.status_code == 404:
-			if IsCheckByBookmarks: return self._ChekTitleByID(slug) is True
+		if Response.ok:
+			return True
+
+		elif Response.status_code == 404:
+			if bool(self.settings.custom.get("check_by_bookmarks")):
+				return self._ChekTitleByID(slug)
+
 			return False
+
+		else: self.portals.request_error(Response, "Failed to check title existing.")
 
 		return None
 
