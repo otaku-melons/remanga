@@ -111,13 +111,15 @@ class Extension(BaseExtension[BaseExtensionOptions]):
 			"is_visible": "hide"
 		}
 		Response = self.requestor.post(f"https://{self.manifest.domain}/api/v2/users/{user_id}/user_bookmarks/", json = Data)
+		JSON: dict | None = Response.json
 
-		if Response.ok and Response.json:
+		if Response.ok and JSON:
 			self.portals.printer.debug(f"Created bookmarks group: \"{self.USED_BOOKMARKS_GROUP}\".")
-			Results: list[dict] = Response.json["results"]
+			Results: list[dict] = JSON["results"]
 			return Results[-1]["id"]
 
-		else: self.portals.request_error(Response, "Failed to create bookmark type.")
+		else:
+			return self.portals.request_error(Response, "Failed to create bookmark type.")
 
 	def get_bookmarks_groups(self, user_id: int) -> dict[int, str]:
 		"""
@@ -143,7 +145,8 @@ class Extension(BaseExtension[BaseExtensionOptions]):
 
 			return Bookmarks
 
-		else: self.portals.request_error(Response, "Failed to get bookmarks group.")
+		else: 
+			return self.portals.request_error(Response, "Failed to get bookmarks group.")
 
 	def get_current_user_id(self) -> int:
 		"""
@@ -161,7 +164,8 @@ class Extension(BaseExtension[BaseExtensionOptions]):
 			UserID: int = Response.json["id"]
 			return UserID
 
-		else: self.portals.request_error(Response, "Failed to get current user ID.")
+		else: 
+			return self.portals.request_error(Response, "Failed to get current user ID.")
 
 	def get_used_bookmark_group_id(self, user_id: int) -> int:
 		"""

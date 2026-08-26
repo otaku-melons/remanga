@@ -1,8 +1,10 @@
 {
+	"filters": {
+		"image_min_size": 0
+	},
 	"custom": {
 		"token": "",
-		"add_free_publication_date": false,
-		"check_by_bookmarks": true
+		"add_free_publication_date": false
 	},
 	"extensions": {
 		"exmanga": {
@@ -10,6 +12,12 @@
 			"options": {
 				"token": ""
 			}
+		},
+		"id_checker": {
+			"is_enabled": true
+		},
+		"slugger": {
+			"is_enabled": true
 		}
 	}
 }

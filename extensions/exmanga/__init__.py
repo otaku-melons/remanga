@@ -85,12 +85,12 @@ class Extension(BaseExtension[Options]):
 
 		Config = WebConfig()
 		Config.select_lib(WebLibs.requests)
-		Config.set_retries_count(self.source_operator.settings.common.retries)
+		Config.set_retries_count(self.source_operator.settings.network.retries)
 		Config.headers.generate_user_agent(("desktop",))
 		Config.headers.automatically_accept_client_hints(True)
 		Config.enable_proxy_protocol_switching(True)
 		WebRequestorObject = WebRequestor(Config)
-		WebRequestorObject.add_proxies(self.source_operator.settings.proxies)
+		WebRequestorObject.add_proxies(self.source_operator.settings.network.proxies)
 
 		Token: str | None = self.options.token
 		
@@ -207,7 +207,7 @@ class Extension(BaseExtension[Options]):
 		)
 		
 		if self.system_objects.options.DEBUG:
-			self.portals.printer.templates.image_downloading_result(Result, show_path = False)
+			self.portals.printer.templates.images.downloaded(Result, show_path = False)
 
 		if Result.path: slide.set_link(Result.path.resolve().as_uri())
 		if not slide.resolution: slide.set_resolution(Result.resolution)
