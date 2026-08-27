@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import orjson
@@ -15,6 +16,11 @@ from melon.core.base.parsers.components.images_downloader import (
 
 from ... import functions
 from .options import Options
+
+if TYPE_CHECKING:
+	from melon.core.system_objects.printer.templates.images import (
+		ImageDownloadingFuture,
+	)
 
 class Extension(BaseExtension[Options]):
 	"""Расширение."""
@@ -196,19 +202,19 @@ class Extension(BaseExtension[Options]):
 		ChapterSlidesDirectory = SlidesDirectory / str(chapter_id)
 		ChapterSlidesDirectory.mkdir(exist_ok = True)
 		
+		Future: ImageDownloadingFuture | None = None
 		if self.system_objects.options.DEBUG:
-			self.portals.printer.emit(f"Chapter <b>{chapter_id}</b>. Downloading \"{slide.filename}\"… ", end_line = False)
+			Future = self.portals.printer.templates.images.start_downloading(slide.filename, "slide")
 
 		self.requestor.config.headers.authorization.disable()
+
 		Result = self.__ImagesDownloader.download_image(
 			url = slide.link,
 			directory = ChapterSlidesDirectory,
 			force_mode = force_mode
 		)
 		
-		if self.system_objects.options.DEBUG:
-			self.portals.printer.templates.images.downloaded(Result, show_path = False)
-
+		if Future: Future.result(Result)
 		if Result.path: slide.set_link(Result.path.resolve().as_uri())
 		if not slide.resolution: slide.set_resolution(Result.resolution)
 

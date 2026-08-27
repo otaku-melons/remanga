@@ -1,4 +1,4 @@
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from dublib.functions.data import Zerotify
 from dublib.functions.data.string import RemoveRecurringSubstrings
@@ -12,7 +12,11 @@ from melon.core.base.parsers.base_manga_parser import BaseMangaParser
 from .extensions import exmanga, slugger
 from .functions import MergeLists
 
-class Parser(BaseMangaParser):
+if TYPE_CHECKING:
+	from . import SourceOperator as SourceOperator
+	from .settings import CustomSettingsModel as CustomSettingsModel
+
+class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	"""Парсер."""
 
 	#==========================================================================================#
@@ -33,13 +37,14 @@ class Parser(BaseMangaParser):
 
 		Slides: list[ImageData] = self.__GetSlides(chapter)
 		Message: str | None = None
-
+		self.source_operator.settings.custom
+		
 		if Slides:
 			FirstSlideLink: str = Slides[0].link
 
 			if FirstSlideLink.startswith("file:") or self.__ExManga.options.domain in FirstSlideLink:
 				Message = "Received from ExManga."
-				
+
 			chapter.set_slides(Slides)
 
 		return Message
@@ -119,7 +124,7 @@ class Parser(BaseMangaParser):
 						Buffer.set_is_paid(CurrentChapter["is_paid"])
 						Buffer.set_workers(Translators)
 
-						if self.settings.custom["add_free_publication_date"] and Buffer.is_paid:
+						if self.settings.custom.add_free_publication_date and Buffer.is_paid:
 							Buffer.extra_data.set("free-publication-date", CurrentChapter["pub_date"])
 						
 						CurrentBranch.add_chapter(Buffer)

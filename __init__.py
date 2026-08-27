@@ -7,8 +7,9 @@ from dublib.web_requestor.config.authorization import Bearer
 from melon.core.base.source_operator import BaseSourceOperator
 
 from .extensions import id_checker
+from .settings import CustomSettingsModel
 
-class SourceOperator(BaseSourceOperator):
+class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	"""Оператор источника."""
 
 	#==========================================================================================#
@@ -140,6 +141,10 @@ class SourceOperator(BaseSourceOperator):
 
 		return None
 
+	def _ReturnCustomSettingsModel(self) -> type[CustomSettingsModel]:
+
+		return CustomSettingsModel
+
 	def _PostInitMethod(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 
@@ -152,7 +157,7 @@ class SourceOperator(BaseSourceOperator):
 		Используется для установки авторизации на основе заголовка _Authorization_.
 		"""
 
-		Token: str | None = self.settings.custom.get("token")
+		Token: str | None = self.settings.custom.token
 		if not Token: return
 
 		Authorizator = Bearer()
