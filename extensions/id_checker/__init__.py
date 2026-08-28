@@ -7,7 +7,10 @@ from .enums import BookmarkCreatioinResults
 if TYPE_CHECKING:
 	from dublib.web_requestor import WebRequestor, WebResponse
 
-class Extension(BaseExtension[BaseExtensionOptions]):
+	from ... import SourceOperator as SourceOperator
+	from ...settings import CustomSettingsModel as CustomSettingsModel
+
+class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExtensionOptions]):
 	"""Расширение."""
 
 	#==========================================================================================#
@@ -42,7 +45,7 @@ class Extension(BaseExtension[BaseExtensionOptions]):
 	def __CheckAuthorization(self):
 		"""Проверяет наличие токена для доступа к системе закладок."""
 
-		if not self.source_operator.settings.custom.get("token"):
+		if not self.parser_settings.custom.token:
 			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
 
 	#==========================================================================================#

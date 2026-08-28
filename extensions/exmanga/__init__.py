@@ -22,7 +22,10 @@ if TYPE_CHECKING:
 		ImageDownloadingFuture,
 	)
 
-class Extension(BaseExtension[Options]):
+	from ... import SourceOperator as SourceOperator
+	from ...settings import CustomSettingsModel as CustomSettingsModel
+
+class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 	"""Расширение."""
 
 	#==========================================================================================#
