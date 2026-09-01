@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from melon.core.base.extensions import BaseExtension, BaseExtensionOptions
 from melon.core.base.formats.base_format import BaseTitle
-from melon.core.structs import TitleDescriptor
+from melon.core.base.structs.title import TitleDescriptor
 
 if TYPE_CHECKING:
 	from ... import SourceOperator as SourceOperator

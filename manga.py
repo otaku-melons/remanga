@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, cast
 
-from dublib.functions.data import Zerotify
-from dublib.functions.data.string import RemoveRecurringSubstrings
+from dublib.functions.data import zerotify
+from dublib.functions.data.string import remove_recurring_substrings
 from dublib.polyglot import HTML
 from dublib.web_requestor import WebResponse
 
@@ -287,8 +287,8 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		if data.get("description"):
 			Description = HTML(data["description"]).plain_text
 			Description = Description.replace("\r", "").replace("\xa0", " ").strip()
-			Description = RemoveRecurringSubstrings(Description, "\n")
-			Description = Zerotify(Description)
+			Description = remove_recurring_substrings(Description, "\n")
+			Description = zerotify(Description)
 
 		return Description
 
