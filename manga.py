@@ -1,13 +1,18 @@
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 from dublib.functions.data import zerotify
 from dublib.functions.data.string import remove_recurring_substrings
 from dublib.polyglot import HTML
 from dublib.web_requestor import WebResponse
 
-from melon.core.base.formats.base_format import ImageData, Person, Statuses
-from melon.core.base.formats.manga import BaseBranch, Chapter, Manga, Types
-from melon.core.base.parsers.base_manga_parser import BaseMangaParser
+from melon.core.base.formats.base_format.branch import Branch
+from melon.core.base.formats.base_format.enums import Statuses
+from melon.core.base.formats.base_format.person import Person
+from melon.core.base.formats.manga.chapter import Chapter
+from melon.core.base.formats.manga.controller import Manga
+from melon.core.base.formats.manga.enums import Types
+from melon.core.base.parsers.manga import BaseMangaParser
+from melon.core.base.structs.image import ImageData
 
 from .extensions import exmanga, slugger
 from .functions import MergeLists
@@ -23,19 +28,20 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 	
-	def _Amend(self, branch: BaseBranch, chapter: Chapter) -> str | None:
+	@override
+	def _amend(self, branch: Branch, chapter: Chapter) -> str | None:
 		"""
 		Дополняет главу дайными о контенте.
 
 		:param branch: Ветвь.
-		:type branch: BaseBranch
+		:type branch: Branch
 		:param chapter: Глава.
 		:type chapter: Chapter
 		:return: Дополнительное необязательное сообщение о дополнении.
 		:rtype: str | None
 		"""
 
-		Slides: list[ImageData] = self.__GetSlides(chapter)
+		Slides: list[ImageData] = self.__get_slides(chapter)
 		Message: str | None = None
 		self.source_operator.settings.custom
 		
@@ -49,36 +55,38 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Message
 
-	def _Parse(self):
+	@override
+	def _parse(self):
 		"""Получает основные данные тайтла."""
 
 		Title = cast(Manga, self.title)
-		Response = self._GetTitleData()
+		Response = self._get_title_data()
 
 		if Response.ok and Response.json:
 			Data = Response.json
 			
-			Title.set_id(Data["id"])
-			Title.set_content_language("rus")
-			Title.set_localized_name(Data["main_name"])
-			Title.set_eng_name(Data["secondary_name"])
-			Title.set_another_names(Data["another_name"].split(" / "))
-			self._GetCovers(Data)
-			Title.set_publication_year(Data["issue_year"])
-			Title.set_description(self._GetDescription(Data))
-			Title.set_age_limit(self._GetAgeLimit(Data))
-			Title.set_type(self.__GetType(Data))
-			Title.set_status(self._GetStatus(Data))
-			Title.set_is_licensed(Data["is_licensed"])
-			Title.set_genres(self._GetGenres(Data))
-			Title.set_tags(self._GetTags(Data))
-			Title.set_persons(self._GetPersons())
-			self.__GetBranches(Data)
+			Title.data.set_id(Data["id"])
+			Title.data.set_content_language("rus")
+			Title.data.set_localized_name(Data["main_name"])
+			Title.data.set_eng_name(Data["secondary_name"])
+			Title.data.set_another_names(Data["another_name"].split(" / "))
+			self._get_covers(Data)
+			Title.data.set_publication_year(Data["issue_year"])
+			Title.data.set_description(self._get_description(Data))
+			Title.data.set_age_limit(self._get_age_limit(Data))
+			Title.data.set_title_type(self.__get_type(Data))
+			Title.data.set_status(self._get_status(Data))
+			Title.data.set_is_licensed(Data["is_licensed"])
+			Title.data.set_genres(self._get_genres(Data))
+			Title.data.set_tags(self._get_tags(Data))
+			Title.data.set_persons(self._get_persons())
+			self.__get_branches(Data)
 
-		elif Response.status_code == 404: self.portals.title_not_found(Title)
+		elif Response.status_code == 404: self.portals.title_not_found(Title.data)
 		else: self.portals.request_error(Response, "Unable to request title data.")
 
-	def _PostInitMethod(self):
+	@override
+	def _post_init(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 	
 		self._IsPaidChaptersLocked = False
@@ -90,7 +98,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
 	#==========================================================================================#
 
-	def __GetBranches(self, data: dict):
+	def __get_branches(self, data: dict):
 		"""
 		Получает ветви тайтла.
 
@@ -102,7 +110,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		for CurrentBranchData in data["branches"]:
 			BranchID = CurrentBranchData["id"]
-			CurrentBranch = BaseBranch(BranchID)
+			CurrentBranch = Branch(BranchID)
 			BranchPage = 1
 
 			while True:
@@ -133,9 +141,9 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 					self.portals.request_error(Response, "Unable to request chapter.", exception = False)
 
 			CurrentBranch.reverse()
-			Title.add_branch(CurrentBranch)	
+			Title.data.add_branch(CurrentBranch)	
 
-	def __GetSlides(self, chapter: Chapter) -> list[ImageData]:
+	def __get_slides(self, chapter: Chapter) -> list[ImageData]:
 		"""
 		Получает данные о слайдах главы.
 
@@ -158,7 +166,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 			SlidesData: list[dict] = MergeLists(Data["pages"])
 
 			if not SlidesData:
-				Slides = self.__TryGetChapterFromExManga(chapter.id)
+				Slides = self.__try_get_chapter_from_exmanga(chapter.id)
 				if Slides: return Slides
 
 				if chapter.is_paid:
@@ -179,7 +187,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Slides
 
-	def __GetType(self, data: dict) -> Types | None:
+	def __get_type(self, data: dict) -> Types | None:
 		"""
 		Определяет тип тайтла.
 
@@ -203,7 +211,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Type
 
-	def __TryGetChapterFromExManga(self, chapter_id: int) -> list[ImageData]:
+	def __try_get_chapter_from_exmanga(self, chapter_id: int) -> list[ImageData]:
 		"""
 		Пробует получить слайды главы через расширение **ExManga**.
 
@@ -234,7 +242,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
 	#==========================================================================================#
 
-	def _GetAgeLimit(self, data: dict) -> int:
+	def _get_age_limit(self, data: dict) -> int:
 		"""
 		Определяет возрастной рейтинг.
 
@@ -253,7 +261,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Rating 	
 
-	def _GetCovers(self, data: dict):
+	def _get_covers(self, data: dict):
 		"""
 		Парсит данные обложек и сверяет их с шаблонами для фильтрации заглушек.
 
@@ -270,9 +278,9 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 				Buffer = ImageData(f"https://{self.manifest.domain}{CoverURI}")
 				Covers.append(Buffer)
 
-		if Covers: Title.set_covers(Covers)
+		if Covers: Title.data.set_covers(Covers)
 
-	def _GetDescription(self, data: dict) -> str | None:
+	def _get_description(self, data: dict) -> str | None:
 		"""
 		Получает описание тайтла.
 
@@ -292,7 +300,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Description
 
-	def _GetGenres(self, data: dict) -> list[str]:
+	def _get_genres(self, data: dict) -> list[str]:
 		"""
 		Получает жанры.
 
@@ -307,7 +315,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Genres
 
-	def _GetPersons(self) -> list[Person]:
+	def _get_persons(self) -> list[Person]:
 		"""
 		Получает список персонажей.
 
@@ -318,7 +326,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		Title = cast(Manga, self.title)
 
 		Persons = []
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.id}/characters/?")
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.id}/characters/?")
 		
 		if Response.ok and Response.json:
 
@@ -335,7 +343,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Persons
 
-	def _GetStatus(self, data: dict) -> Statuses | None:
+	def _get_status(self, data: dict) -> Statuses | None:
 		"""
 		Определяет статус тайтла.
 
@@ -359,7 +367,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Status
 
-	def _GetTags(self, data: dict) -> list[str]:
+	def _get_tags(self, data: dict) -> list[str]:
 		"""
 		Получает список тегов.
 
@@ -374,7 +382,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return Tags
 	
-	def _GetTitleData(self) -> "WebResponse":
+	def _get_title_data(self) -> "WebResponse":
 		"""
 		Запрашивает данные тайтла.
 		
@@ -385,16 +393,16 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		"""
 
 		Title = cast(Manga, self.title)
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
+		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.slug}/")
 
 		if Response.status_code == 404 and self.__Slugger.options.is_enabled:
 
-			if Title.load(Title.slug):
+			if Title.load(Title.data.slug):
 				self.portals.printer.emit("Loaded local file.")
 			else:
 				return Response
 
 			if self.__Slugger.update_title_slug(Title):
-				return self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.slug}/")
+				return self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.slug}/")
 
 		return Response

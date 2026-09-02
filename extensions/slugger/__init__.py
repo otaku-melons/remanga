@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from melon.core.base.extensions import BaseExtension, BaseExtensionOptions
-from melon.core.base.formats.base_format import BaseTitle
+from melon.core.base.formats.manga.controller import Manga
 from melon.core.base.structs.title import TitleDescriptor
 
 if TYPE_CHECKING:
@@ -80,35 +80,35 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExten
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def get_title_descriptor_by_name(self, title: "BaseTitle") -> TitleDescriptor | None:
+	def get_title_descriptor_by_name(self, title: "Manga") -> TitleDescriptor | None:
 		"""
 		Пытается получить дескриптор тайтла методом поиска по названию.
 
 		:param title: Тайтл.
-		:type title: BaseTitle
+		:type title: Manga
 		:raises ValueError: В тайтле не заполнены обязательные поля.
 		:return: Дескриптор тайтла или `None` при неудаче.
 		:rtype: TitleDescriptor | None
 		"""
 
-		if not title.id:
+		if not title.data.id:
 			raise ValueError("Title must have ID for this operation.")
 
-		if not title.localized_name:
+		if not title.data.localized_name:
 			raise ValueError("Title must have localized name for this operation.")
 
-		for Descriptor in self.__SearchByName(title.localized_name):
-			if title.id == Descriptor.id:
+		for Descriptor in self.__SearchByName(title.data.localized_name):
+			if title.data.id == Descriptor.id:
 				return Descriptor
 
 		return None
 
-	def update_title_slug(self, title: "BaseTitle") -> bool:
+	def update_title_slug(self, title: "Manga") -> bool:
 		"""
 		Обновляет алиас тайтла, пытаясь обнаружить название последнего в каталоге и сравнить ID.
 
 		:param title: Тайтл.
-		:type title: BaseTitle
+		:type title: Manga
 		:raises ValueError: В тайтле не заполнены обязательные поля.
 		:return: Возвращает `True`, если алиас тайтла изменился.
 		:rtype: bool
@@ -119,8 +119,8 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExten
 		if not Descriptor or not Descriptor.slug or not Descriptor.id:
 			return False
 		
-		if title.slug != Descriptor.slug:
-			title.set_slug(Descriptor.slug)
+		if title.data.slug != Descriptor.slug:
+			title.data.set_slug(Descriptor.slug)
 			self.source_operator.shared_data.journal.update(Descriptor.id, Descriptor.slug)
 			self.portals.printer.emit(f"Slug updated: <i>{Descriptor.slug}</i>.")
 			return True

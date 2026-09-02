@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timedelta
-from typing import Sequence
+from typing import Sequence, override
 
 from dublib.web_requestor.config.authorization import Bearer
 
@@ -16,7 +16,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _CollectCatalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
+	def _collect_catalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
 		"""
 		Собирает список алиасов тайтлов по заданным параметрам.
 
@@ -52,7 +52,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		return Slugs
 	
-	def _CollectUpdates(self, period: int, pages: int | None = None) -> list[str]:
+	def _collect_updates(self, period: int, pages: int | None = None) -> list[str]:
 		"""
 		Собирает алиасы тайтлов, обновлённых за указанный период времени (в часах).
 
@@ -100,7 +100,23 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _CollectSlugs(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Sequence[str]:
+	@override
+	def _authorize(self):
+		"""
+		Выполняется после `_InitializeRequestor()` и обёрнут для отлова исключений `TokenExpired`.
+
+		Используется для установки авторизации на основе заголовка _Authorization_.
+		"""
+
+		Token: str | None = self.settings.custom.token
+		if not Token: return
+
+		Authorizator = Bearer()
+		Authorizator.set_token(Token)
+		self.requestor.config.headers.authorization.set_authorization_method(Authorizator)
+
+	@override
+	def _collect_slugs(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Sequence[str]:
 		"""
 		Собирает список алиасов тайтлов по заданным параметрам.
 
@@ -114,9 +130,21 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		:rtype: Sequence[str]
 		"""
 
-		return self._CollectCatalog(filters, pages) if not period else self._CollectUpdates(period, pages)
+		return self._collect_catalog(filters, pages) if not period else self._collect_updates(period, pages)
 
-	def _IsTitleExists(self, slug: str) -> bool | None:
+	@override
+	def _export_custom_settings_model(self) -> type[CustomSettingsModel]:
+		"""
+		Экспортирует модель кастомных настроек парсера. Модель должна быть унаследована от `CustomSettingsModel`.
+
+		:return: Модель кастомных настроек парсера.
+		:rtype: type[CustomSettingsModel]
+		"""
+
+		return CustomSettingsModel
+
+	@override
+	def _is_title_exists(self, slug: str) -> bool | None:
 		"""
 		Проверяет, существует ли тайтл на сервере.
 
@@ -141,25 +169,9 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		return None
 
-	def _ReturnCustomSettingsModel(self) -> type[CustomSettingsModel]:
-
-		return CustomSettingsModel
-
-	def _PostInitMethod(self):
+	@override
+	def _post_init(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 
 		self.__CheckerByID = id_checker.Extension(self)
 
-	def _SetAuthorizationMethod(self):
-		"""
-		Выполняется после `_InitializeRequestor()` и обёрнут для отлова исключений `TokenExpired`.
-
-		Используется для установки авторизации на основе заголовка _Authorization_.
-		"""
-
-		Token: str | None = self.settings.custom.token
-		if not Token: return
-
-		Authorizator = Bearer()
-		Authorizator.set_token(Token)
-		self.requestor.config.headers.authorization.set_authorization_method(Authorizator)

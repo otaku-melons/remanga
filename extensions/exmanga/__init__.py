@@ -8,11 +8,12 @@ from dublib.web_requestor import WebConfig, WebLibs, WebRequestor
 from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.extensions import BaseExtension
-from melon.core.base.formats.base_format import BaseTitle, ImageData
+from melon.core.base.formats.manga.controller import Manga
 from melon.core.base.parsers.components.images_downloader import (
 	ImageDownloadingResult,
 	ImagesDownloader,
 )
+from melon.core.base.structs.image import ImageData
 
 from ... import functions
 from .options import Options
@@ -178,12 +179,12 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options])
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def download_slide(self, title: "BaseTitle", chapter_id: int, slide: ImageData, force_mode: bool = False) -> tuple[ImageData, ImageDownloadingResult]:
+	def download_slide(self, title: "Manga", chapter_id: int, slide: ImageData, force_mode: bool = False) -> tuple[ImageData, ImageDownloadingResult]:
 		"""
 		Скачивает слайд в каталог изображений главы тайтла.
 
 		:param title: Тайтл.
-		:type title: BaseTitle
+		:type title: Manga
 		:param chapter_id: ID главы.
 		:type chapter_id: int
 		:param slide: Данные изображения. В случае успешного скачивания ссылка заменяется на URI локального файла.
