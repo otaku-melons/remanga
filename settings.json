@@ -1,10 +1,8 @@
 {
-	"filters": {
-		"image_min_size": 0
-	},
 	"custom": {
 		"token": "",
-		"add_free_publication_date": false
+		"add_free_publication_date": false,
+		"only_best_cover": false
 	},
 	"extensions": {
 		"exmanga": {

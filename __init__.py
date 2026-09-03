@@ -174,4 +174,3 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		"""Метод, выполняющийся после инициализации объекта."""
 
 		self.__CheckerByID = id_checker.Extension(self)
-

@@ -263,22 +263,33 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 	def _get_covers(self, data: dict):
 		"""
-		Парсит данные обложек и сверяет их с шаблонами для фильтрации заглушек.
+		Парсит данные обложек.
 
 		:param data: Словарь данных тайтла.
 		:type data: dict
 		"""
 
-		Title = cast(Manga, self.title)
-		Covers = []
+		title = cast(Manga, self.title)
+		
+		covers_data: dict[str, str] = data["cover"]
+		covers: list[ImageData] = []
 
-		for CoverURI in data["cover"].values():
+		if self.settings.custom.only_best_cover:
+			best_cover_uri = covers_data["high"]
+			cover = ImageData(f"https://{self.manifest.domain}{best_cover_uri}")
+			covers.append(cover)
 
-			if CoverURI not in ("/media/None",):
-				Buffer = ImageData(f"https://{self.manifest.domain}{CoverURI}")
-				Covers.append(Buffer)
+		else:
+			for cover_uri in reversed(covers_data.values()):
+				cover = ImageData(f"https://{self.manifest.domain}{cover_uri}")
+				covers.append(cover)
 
-		if Covers: Title.data.set_covers(Covers)
+
+		for cover in covers:
+			if cover.link.endswith("/media/None"):
+				covers.remove(cover)
+
+		title.data.set_covers(covers)
 
 	def _get_description(self, data: dict) -> str | None:
 		"""

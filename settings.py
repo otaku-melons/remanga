@@ -8,3 +8,4 @@ class CustomSettingsModel(CustomSettingsTemplate):
 
 	token: str | None
 	add_free_publication_date: bool
+	only_best_cover: bool
