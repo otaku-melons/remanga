@@ -6,7 +6,7 @@ from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.source_operator import BaseSourceOperator
 
-from .extensions import id_checker
+from . import extensions
 from .settings import CustomSettingsModel
 
 class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
@@ -158,7 +158,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		
 		if Response.ok: return True
 		elif Response.status_code == 404:
-			if not self.__CheckerByID.options.is_enabled: return False
+			if not self.extensions.is_enabled(extensions.ID_Checker): return False
 
 			TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
 			if not TitleID: return False
@@ -173,4 +173,4 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	def _post_init(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 
-		self.__CheckerByID = id_checker.Extension(self)
+		self.__CheckerByID = self.extensions.run(extensions.ID_Checker)

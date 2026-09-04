@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, override
 
 from melon.core.base.extensions import BaseExtension, BaseExtensionOptions
 
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 	from ... import SourceOperator as SourceOperator
 	from ...settings import CustomSettingsModel as CustomSettingsModel
 
-class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExtensionOptions]):
+class ID_Checker(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExtensionOptions]):
 	"""Расширение."""
 
 	#==========================================================================================#
@@ -52,20 +52,22 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExten
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _PostInitMethod(self):
-		"""Метод, выполняющийся после инициализации объекта."""
-		
-		self.USED_BOOKMARKS_GROUP: Literal["Melon"] = "Melon"
-
-	def _ReturnOptionsType(self) -> type[BaseExtensionOptions]:
+	@override
+	def _export_options_model(self) -> type[BaseExtensionOptions]:
 		"""
-		Возвращает тип контейнера опций.
+		Возвращает модель опций.
 
-		:return: Тип контейнера опций.
-		:rtype: type[T]
+		:return: Модель опций.
+		:rtype: type[BaseExtensionOptions]
 		"""
 
 		return BaseExtensionOptions
+
+	@override
+	def _post_init(self):
+		"""Метод, выполняющийся после инициализации объекта."""
+		
+		self.USED_BOOKMARKS_GROUP: Literal["Melon"] = "Melon"
 
 	#==========================================================================================#
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #

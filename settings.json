@@ -1,4 +1,12 @@
 {
+	"filters": {
+		"images": {
+			"singatures": [
+				"v2.100.9b6364a6db996c24",
+				"v2.100.c6ce69799987c660"
+			]
+		}
+	},
 	"custom": {
 		"token": "",
 		"add_free_publication_date": false,
@@ -6,16 +14,7 @@
 	},
 	"extensions": {
 		"exmanga": {
-			"is_enabled": false,
-			"options": {
-				"token": ""
-			}
-		},
-		"id_checker": {
-			"is_enabled": true
-		},
-		"slugger": {
-			"is_enabled": true
+			"token": ""
 		}
 	}
 }

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 from urllib.parse import urlparse
 
 import orjson
@@ -8,6 +8,7 @@ from dublib.web_requestor import WebConfig, WebLibs, WebRequestor
 from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.extensions import BaseExtension
+from melon.core.base.formats.base_format.enums import ImagesTypes
 from melon.core.base.formats.manga.controller import Manga
 from melon.core.base.parsers.components.images_downloader import (
 	ImageDownloadingResult,
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 	from ... import SourceOperator as SourceOperator
 	from ...settings import CustomSettingsModel as CustomSettingsModel
 
-class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
+class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 	"""Расширение."""
 
 	#==========================================================================================#
@@ -157,29 +158,31 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options])
 	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def _PostInitMethod(self):
-		"""Метод, выполняющийся после инициализации объекта."""
-
-		self.__Requestor: WebRequestor = self.__InitializeRequestor()
-		self.__ImagesDownloader: ImagesDownloader = ImagesDownloader(self._SourceOperator)
-
-		self.__ImagesDownloader.set_requestor(self.__Requestor)
-
-	def _ReturnOptionsType(self) -> type[Options]:
+	@override
+	def _export_options_model(self) -> type[Options]:
 		"""
-		Возвращает тип контейнера опций.
+		Возвращает модель опций.
 
-		:return: Тип контейнера опций.
-		:rtype: type[T]
+		:return: Модель опций.
+		:rtype: type[Options]
 		"""
 
 		return Options
+
+	@override
+	def _post_init(self):
+		"""Метод, выполняющийся после инициализации объекта."""
+
+		self.__Requestor: WebRequestor = self.__InitializeRequestor()
+		self.__ImagesDownloader: ImagesDownloader = ImagesDownloader(self._source_operator)
+
+		self.__ImagesDownloader.set_requestor(self.__Requestor)
 
 	#==========================================================================================#
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def download_slide(self, title: "Manga", chapter_id: int, slide: ImageData, force_mode: bool = False) -> tuple[ImageData, ImageDownloadingResult]:
+	def download_slide(self, title: "Manga", chapter_id: int, slide: ImageData, force_mode: bool = False) -> ImageDownloadingResult:
 		"""
 		Скачивает слайд в каталог изображений главы тайтла.
 
@@ -191,8 +194,8 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options])
 		:type slide: ImageData
 		:param force_mode: Переключает режим перезаписи существующих изображений.
 		:type force_mode: bool
-		:return: Кортеж из данных изображения и результата скачивания слайда.
-		:rtype: tuple[ImageData, ImageDownloadingResult]
+		:return: Результат скачивания слайда.
+		:rtype: ImageDownloadingResult
 		"""
 
 		ImagesDirectory = self.source_operator.settings.directories.images
@@ -208,7 +211,7 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options])
 		
 		Future: ImageDownloadingFuture | None = None
 		if self.system_objects.options.DEBUG:
-			Future = self.portals.printer.templates.images.start_downloading(slide.filename, "slide")
+			Future = self.portals.printer.templates.images.start_downloading(slide.filename, ImagesTypes.Slide)
 
 		self.requestor.config.headers.authorization.disable()
 
@@ -222,7 +225,7 @@ class Extension(BaseExtension["SourceOperator", "CustomSettingsModel", Options])
 		if Result.path: slide.set_link(Result.path.resolve().as_uri())
 		if not slide.resolution: slide.set_resolution(Result.resolution)
 
-		return (slide, Result)
+		return Result
 
 	def get_slides_data(self, chapter_id: int) -> list[ImageData]:
 		"""

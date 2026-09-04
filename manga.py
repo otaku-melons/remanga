@@ -14,7 +14,7 @@ from melon.core.base.formats.manga.enums import Types
 from melon.core.base.parsers.manga import BaseMangaParser
 from melon.core.base.structs.image import ImageData
 
-from .extensions import exmanga, slugger
+from . import extensions
 from .functions import MergeLists
 
 if TYPE_CHECKING:
@@ -91,8 +91,8 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	
 		self._IsPaidChaptersLocked = False
 
-		self.__ExManga = exmanga.Extension(self.source_operator)
-		self.__Slugger = slugger.Extension(self.source_operator)
+		self.__ExManga = self.source_operator.extensions.run(extensions.ExManga)
+		self.__Slugger = self.source_operator.extensions.run(extensions.Slugger)
 
 	#==========================================================================================#
 	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
@@ -221,7 +221,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:rtype: list[ImageData]
 		"""
 		
-		if not self.__ExManga.options.is_enabled: return []
+		if not self.source_operator.extensions.is_enabled(extensions.ExManga): return []
 		Slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
 		if not Slides: return []
 		Title = cast(Manga, self.title)
@@ -229,8 +229,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		for Index in range(SlidesCound):
 			Slide: ImageData = Slides[Index]
-			# To-Do: возвращать только результат?
-			Slide, Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
+			Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
 			
 			if Result.error_message:
 				self.portals.printer.error("Chapter slides downloading failed.")
@@ -406,7 +405,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		Title = cast(Manga, self.title)
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.slug}/")
 
-		if Response.status_code == 404 and self.__Slugger.options.is_enabled:
+		if Response.status_code == 404 and self.source_operator.extensions.is_enabled(extensions.Slugger):
 
 			if Title.load(Title.data.slug):
 				self.portals.printer.emit("Loaded local file.")
