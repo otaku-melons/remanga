@@ -34,7 +34,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		MAX_CATALOG_PAGE = 999
 		
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?page={Page}&count=30&ordering=-chapter_date&{filters}")
+			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&ordering=-score&page={Page}&{filters}")
 
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
