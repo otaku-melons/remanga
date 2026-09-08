@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 
 import orjson
 
-from dublib.exceptions.web_requestor import TokenExpired
+from dublib.exceptions.web_requestor import TokenExpiredError
 from dublib.web_requestor import WebConfig, WebLibs, WebRequestor
 from dublib.web_requestor.config.authorization import Bearer
 
@@ -110,7 +110,7 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 			Authorizator = Bearer()
 
 			try: Authorizator.set_jwt(Token)
-			except TokenExpired: self.portals.authorization_required("ExManga token expired.")
+			except TokenExpiredError: self.portals.authorization_required("ExManga token expired.")
 
 			Config.headers.authorization.set_authorization_method(Authorizator)
 
