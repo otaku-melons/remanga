@@ -221,21 +221,28 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:rtype: list[ImageData]
 		"""
 		
-		if not self.source_operator.extensions.is_enabled(extensions.ExManga): return []
-		Slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
-		if not Slides: return []
-		Title = cast(Manga, self.title)
-		SlidesCound: int = len(Slides)
+		if not self.source_operator.extensions.is_enabled(extensions.ExManga):
+			return []
 
-		for Index in range(SlidesCound):
-			Slide: ImageData = Slides[Index]
-			Result = self.__ExManga.download_slide(Title, chapter_id, Slide)
+		slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
+
+		if not slides:
+			return slides
+
+		title = cast(Manga, self.title)
+		filtered_slides: list[ImageData] = []
+
+		for index in range(len(slides)):
+			slide: ImageData = slides[index]
+			result = self.__ExManga.download_slide(title, chapter_id, slide)
+
+			if result.filtered_by:
+				filtered_slides.append(slide)
+
+		for slide in filtered_slides:
+			slides.remove(slide)
 			
-			if Result.error_message:
-				self.portals.printer.error("Chapter slides downloading failed.")
-				return []
-
-		return Slides
+		return slides
 
 	#==========================================================================================#
 	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
