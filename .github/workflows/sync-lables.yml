@@ -2,6 +2,9 @@ name: Sync labels
 
 on: [push, pull_request]
 
+permissions:
+  issues: write
+
 jobs:
   call-workflow:
     uses: otaku-melons/.github/.github/workflows/sync-labels.yml@main
