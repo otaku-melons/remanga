@@ -50,7 +50,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		if Slides:
 			FirstSlideLink: str = Slides[0].link
 
-			if FirstSlideLink.startswith("file:") or self.__ExManga.options.domain in FirstSlideLink:
+			if FirstSlideLink.startswith("file:") or self.__ExManga.domain in FirstSlideLink:
 				Message = "Received from ExManga."
 
 			chapter.set_slides(Slides)

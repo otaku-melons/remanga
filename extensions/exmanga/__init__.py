@@ -35,6 +35,12 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 	#==========================================================================================#
 
 	@property
+	def domain(self) -> str:
+		"""Домен расширения."""
+
+		return self.__domain
+
+	@property
 	def images_downloader(self) -> ImagesDownloader:
 		"""Оператор загрузки изображений."""
 
