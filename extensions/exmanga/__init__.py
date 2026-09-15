@@ -3,23 +3,23 @@ from urllib.parse import urlparse
 
 import orjson
 
-from dublib.exceptions.web_requestor import TokenExpiredError
+from dublib.functions.filesystem import text
 from dublib.web_requestor import WebConfig, WebLibs, WebRequestor
 from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.extensions import BaseExtension
 from melon.core.base.formats.base_format.enums import ImagesTypes
-from melon.core.base.formats.manga.controller import Manga
 from melon.core.base.parsers.components.images_downloader import (
 	ImageDownloadingResult,
 	ImagesDownloader,
 )
 from melon.core.base.structs.image import ImageData
 
-from ... import functions
+from ...src import functions
 from .options import Options
 
 if TYPE_CHECKING:
+	from melon.core.base.formats.manga.controller import Manga
 	from melon.core.system_objects.printer.templates.images import (
 		ImageDownloadingFuture,
 	)
@@ -38,19 +38,63 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 	def images_downloader(self) -> ImagesDownloader:
 		"""Оператор загрузки изображений."""
 
-		return self.__ImagesDownloader
+		return self.__images_downloader
 
 	@property
 	def requestor(self) -> WebRequestor:
 		"""Оператор запросов."""
 
-		return self.__Requestor
+		return self.__requestor
+
+	@property
+	def token(self) -> str:
+		"""Токен авторизации."""
+
+		authorization_method = self.__requestor.config.headers.authorization.method
+
+		if not authorization_method or not authorization_method.value:
+			self.portals.authorization_required("Authorization method missing.")
+
+		return authorization_method.value
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> ПРИВАТНЫЕ МЕТОДЫ АВТОРИЗАЦИИ <<<<< #
 	#==========================================================================================#
 
-	def __GenerateCookies(self, token: str) -> str:
+	def __authorizate(self):
+		"""Выполняет процедуры авторизации."""
+
+		token: str | None = self.__read_token()
+		is_token_readed: bool = bool(token)
+
+		if not token:
+			token = self.__get_token()
+
+		self.__set_token(token, save = not is_token_readed)
+
+	def __get_token(self) -> str:
+		"""
+		Выполняет авторизацию по электронной почте и паролю.
+
+		:return: Токен авторизации.
+		:rtype: str
+		"""
+
+		body: dict[str, str] = {
+			"email": self.options.email,
+			"password": self.options.password
+		}
+
+		response = self.__requestor.post(f"https://{self.__domain}/api/auth/login", json = body)
+
+		if not response.ok or not response.json:
+			self.portals.request_error(response, "Authorization failed.")
+
+		self.portals.printer.debug("Requested new token. Expires in 7 days.")
+
+		return response.json["data"]
+
+	def __generate_cookie(self, token: str) -> str:
 		"""
 		Генерирует строку _Cookie_ для запросов.
 
@@ -68,7 +112,7 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 				"bookmark": "0",
 				"builtin": False,
 				"domain": f"https://{self.source_operator.manifest.domain}",
-				"mirror": f"https://{self.options.domain}",
+				"mirror": f"https://{self.__domain}",
 				"noread": False,
 				"noview": True,
 				"preview": True,
@@ -86,7 +130,47 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 
 		return "; ".join(CookiesStrings)
 
-	def __InitializeRequestor(self) -> WebRequestor:
+	def __read_token(self) -> str | None:
+		"""
+		Читает токен из временной директории расширения.
+
+		:return: Токен авторизации или `None` если последний не сохранён или устарел.
+		:rtype: str | None
+		"""
+
+		if not self.__token_file.exists():
+			return None
+
+		token: str = text.read(self.__token_file, split = False, strip_level = 1)
+		
+		if Bearer().is_jwt_expired(token):
+			return None
+
+		return token
+
+	def __set_token(self, token: str, save: bool = True):
+		"""
+		Устанавливает токен авторизации.
+
+		:param token: Токен авторизации.
+		:type token: str
+		:param save: Указывает, нужно ли сохранять токен.
+		:type save: bool
+		"""
+		
+		authorizator = Bearer()
+		authorizator.set_jwt(token)
+
+		self.__requestor.config.headers.set("cookie", self.__generate_cookie(token))
+		self.__requestor.config.headers.authorization.set_authorization_method(authorizator)
+
+		if save: text.write(self.__token_file, self.token)
+
+	#==========================================================================================#
+	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	#==========================================================================================#
+
+	def __initialize_requestor(self) -> WebRequestor:
 		"""
 		Инициализирует модуль WEB-запросов.
 
@@ -103,22 +187,12 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 		WebRequestorObject = WebRequestor(Config)
 		WebRequestorObject.add_proxies(self.source_operator.settings.network.proxies)
 
-		Token: str | None = self.options.token
-		
-		if Token:
-			Config.headers.add("cookie", self.__GenerateCookies(Token))
-			Authorizator = Bearer()
-
-			try: Authorizator.set_jwt(Token)
-			except TokenExpiredError: self.portals.authorization_required("ExManga token expired.")
-
-			Config.headers.authorization.set_authorization_method(Authorizator)
-
-		else: self.portals.authorization_required("ExManga extension requires authorization.")
+		# При авторизации возвращается код 201.
+		Config.set_good_codes((200, 201))
 		
 		return WebRequestorObject
 
-	def __IsExMangaStub(self, link: str) -> bool:
+	def __is_exmanga_stub(self, link: str) -> bool:
 		"""
 		Проверяет, ведёт ли ссылка на слайд-рекламу **ExManga**.
 
@@ -132,7 +206,7 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 
 		return URI.startswith("/storage/_/exmanga")
 
-	def __ProcessImageData(self, data: dict) -> ImageData | None:
+	def __process_image_data(self, data: dict) -> ImageData | None:
 		"""
 		Обрабатывает данные изображения, формирую из них структуру, фильтруя рекламу.
 
@@ -146,7 +220,7 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 		Width: int | None = data.get("width")
 		Height: int | None = data.get("height")
 
-		if self.__IsExMangaStub(Link):
+		if self.__is_exmanga_stub(Link):
 			return None
 
 		Buffer = ImageData(Link)
@@ -173,10 +247,14 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 	def _post_init(self):
 		"""Метод, выполняющийся после инициализации объекта."""
 
-		self.__Requestor: WebRequestor = self.__InitializeRequestor()
-		self.__ImagesDownloader: ImagesDownloader = ImagesDownloader(self._source_operator)
+		self.__requestor: WebRequestor = self.__initialize_requestor()
+		self.__images_downloader: ImagesDownloader = ImagesDownloader(self._source_operator)
+		self.__images_downloader.set_requestor(self.__requestor)
 
-		self.__ImagesDownloader.set_requestor(self.__Requestor)
+		self.__token_file = self.temp_directory / ".token"
+		self.__domain: str = "mirror.exmanga.org" if self.options.use_mirror else "exmanga.org"
+
+		self.__authorizate()
 
 	#==========================================================================================#
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
@@ -215,7 +293,7 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 
 		self.requestor.config.headers.authorization.disable()
 
-		Result = self.__ImagesDownloader.download_image(
+		Result = self.__images_downloader.download_image(
 			url = slide.link,
 			directory = ChapterSlidesDirectory,
 			force_mode = force_mode
@@ -227,32 +305,46 @@ class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
 
 		return Result
 
-	def get_slides_data(self, chapter_id: int) -> list[ImageData]:
+	def get_slides_data(self, chapter_id: int, is_token_refershed: bool = False) -> list[ImageData]:
 		"""
 		Пытается получить данные слайдов главы. В случае успеха скачивает их в каталог слайдов главы.
 
 		:param chapter_id: ID главы.
 		:type chapter_id: int
+		:param is_token_refershed: Указывает, обновлён ли токен перед выполнением метода. Позволяет избежать бесконечной рекурсии при невозможности авторизации.
+		:type is_token_refershed: bool
 		:return: Список данных слайдов (пуста при невозможности получения).
 		:rtype: list[ImageData]
 		"""
 
 		self.requestor.config.headers.authorization.enable()
-		Response = self.requestor.get(f"https://{self.options.domain}/api/chapter?id={chapter_id}")
-		Slides: list[ImageData] = []
+
+		params: dict[str, int] = {"id": chapter_id}
+		response = self.requestor.get(f"https://{self.__domain}/api/chapter", params = params)
 		
-		if Response.ok and Response.json:
-			Data: list = Response.json["data"]
-			SlidesData: list[dict] = functions.MergeLists(Data)
-
-			for SlideData in SlidesData:
-				Buffer: ImageData | None = self.__ProcessImageData(SlideData)
-				if Buffer: Slides.append(Buffer)
-
-		elif Response.status_code == 404:
+		if response.status_code == 404:
 			self.portals.printer.emit(f"Chapter {chapter_id}. Slides not found on ExManga server.")
 			return []
 
-		else: self.portals.request_error(Response, "Unable check slides on ExManga server.")
+		elif response.status_code == 401:
 
-		return Slides
+			if not is_token_refershed:
+				token: str = self.__get_token()
+				self.__set_token(token)
+				return self.get_slides_data(chapter_id, is_token_refershed = True)
+
+			else:
+				self.portals.authorization_required("Unable authorizate with refreshed token.")
+
+		if not response.ok or not response.json:
+			self.portals.request_error(response, "Unable check slides on ExManga server.")
+
+		slides: list[ImageData] = []
+		data: list = response.json["data"]
+		slides_data: list[dict] = functions.MergeLists(data)
+
+		for slide_data in slides_data:
+			buffer: ImageData | None = self.__process_image_data(slide_data)
+			if buffer: slides.append(buffer)
+
+		return slides

@@ -3,21 +3,23 @@ from typing import TYPE_CHECKING, cast, override
 from dublib.functions.data import zerotify
 from dublib.functions.data.string import remove_recurring_substrings
 from dublib.polyglot import HTML
-from dublib.web_requestor import WebResponse
 
 from melon.core.base.formats.base_format.branch import Branch
 from melon.core.base.formats.base_format.enums import Statuses
 from melon.core.base.formats.base_format.person import Person
 from melon.core.base.formats.manga.chapter import Chapter
-from melon.core.base.formats.manga.controller import Manga
 from melon.core.base.formats.manga.enums import Types
 from melon.core.base.parsers.manga import BaseMangaParser
 from melon.core.base.structs.image import ImageData
 
 from . import extensions
-from .functions import MergeLists
+from .src.functions import MergeLists
 
 if TYPE_CHECKING:
+	from dublib.web_requestor import WebResponse
+	
+	from melon.core.base.formats.manga.controller import Manga
+
 	from . import SourceOperator as SourceOperator
 	from .settings import CustomSettingsModel as CustomSettingsModel
 
@@ -59,7 +61,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	def _parse(self):
 		"""Получает основные данные тайтла."""
 
-		Title = cast(Manga, self.title)
+		Title = cast("Manga", self.title)
 		Response = self._get_title_data()
 
 		if Response.ok and Response.json:
@@ -106,7 +108,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:type data: dict
 		"""
 
-		Title = cast(Manga, self.title)
+		Title = cast("Manga", self.title)
 
 		for CurrentBranchData in data["branches"]:
 			BranchID = CurrentBranchData["id"]
@@ -170,7 +172,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 				if Slides: return Slides
 
 				if chapter.is_paid:
-					self._IsPaidChaptersLocked = True
+					self._IsPaidChaptersLocked = False # DEBUG
 					self.portals.printer.debug("Paid chapters locked. All will be skipped.")
 
 				self.portals.chapter_skipped(chapter)
@@ -229,7 +231,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		if not slides:
 			return slides
 
-		title = cast(Manga, self.title)
+		title = cast("Manga", self.title)
 		filtered_slides: list[ImageData] = []
 
 		for index in range(len(slides)):
@@ -275,7 +277,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:type data: dict
 		"""
 
-		title = cast(Manga, self.title)
+		title = cast("Manga", self.title)
 		
 		covers_data: dict[str, str] = data["cover"]
 		covers: list[ImageData] = []
@@ -340,7 +342,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:rtype: list[Person]
 		"""
 
-		Title = cast(Manga, self.title)
+		Title = cast("Manga", self.title)
 
 		Persons = []
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.id}/characters/?")
@@ -409,7 +411,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:rtype: WebResponse
 		"""
 
-		Title = cast(Manga, self.title)
+		Title = cast("Manga", self.title)
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.slug}/")
 
 		if Response.status_code == 404 and self.source_operator.extensions.is_enabled(extensions.Slugger):

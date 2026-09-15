@@ -6,5 +6,6 @@ from melon.core.base.parsers.components.settings import BaseExtensionOptions
 class Options(BaseExtensionOptions):
 	"""Опции расширения."""
 
-	token: str
-	domain: str = "exmanga.org"
+	email: str
+	password: str
+	use_mirror: bool = False
