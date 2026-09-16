@@ -25,9 +25,8 @@ if TYPE_CHECKING:
 	)
 
 	from ... import SourceOperator as SourceOperator
-	from ...settings import CustomSettingsModel as CustomSettingsModel
 
-class ExManga(BaseExtension["SourceOperator", "CustomSettingsModel", Options]):
+class Extension(BaseExtension["SourceOperator", Options]):
 	"""Расширение."""
 
 	#==========================================================================================#

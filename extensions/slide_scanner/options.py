@@ -6,6 +6,4 @@ from melon.core.base.extensions.options import BaseExtensionOptions
 class Options(BaseExtensionOptions):
 	"""Опции расширения."""
 
-	email: str
-	password: str
-	use_mirror: bool = False
+	query: str = "img{r:1-6}{ov:-reserve}.reimg{ov:2}.org"

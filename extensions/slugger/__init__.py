@@ -1,15 +1,15 @@
 from typing import TYPE_CHECKING, override
 
-from melon.core.base.extensions import BaseExtension, BaseExtensionOptions
+from melon.core.base.extensions import BaseExtension
+from melon.core.base.extensions.options import BaseExtensionOptions
 from melon.core.base.structs.title import TitleDescriptor
 
 if TYPE_CHECKING:
 	from melon.core.base.formats.manga.controller import Manga
 
 	from ... import SourceOperator as SourceOperator
-	from ...settings import CustomSettingsModel as CustomSettingsModel
 
-class Slugger(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExtensionOptions]):
+class Extension(BaseExtension["SourceOperator", BaseExtensionOptions]):
 	"""Расширение."""
 
 	#==========================================================================================#

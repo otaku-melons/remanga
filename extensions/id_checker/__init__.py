@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Literal, override
 
-from melon.core.base.extensions import BaseExtension, BaseExtensionOptions
+from melon.core.base.extensions import BaseExtension
+from melon.core.base.extensions.options import BaseExtensionOptions
 
 from .enums import BookmarkCreatioinResults
 
@@ -8,9 +9,8 @@ if TYPE_CHECKING:
 	from dublib.web_requestor import WebRequestor, WebResponse
 
 	from ... import SourceOperator as SourceOperator
-	from ...settings import CustomSettingsModel as CustomSettingsModel
 
-class ID_Checker(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExtensionOptions]):
+class Extension(BaseExtension["SourceOperator", "BaseExtensionOptions"]):
 	"""Расширение."""
 
 	#==========================================================================================#
@@ -45,7 +45,7 @@ class ID_Checker(BaseExtension["SourceOperator", "CustomSettingsModel", BaseExte
 	def __CheckAuthorization(self):
 		"""Проверяет наличие токена для доступа к системе закладок."""
 
-		if not self.parser_settings.custom.token:
+		if not self.source_operator.settings.custom.token:
 			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
 
 	#==========================================================================================#
