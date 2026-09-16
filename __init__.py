@@ -1,6 +1,7 @@
 import math
 from datetime import datetime, timedelta
-from typing import Sequence, override
+from typing import TYPE_CHECKING, Sequence, override
+from urllib.parse import urlparse
 
 from dublib.web_requestor.config.authorization import Bearer
 
@@ -8,6 +9,11 @@ from melon.core.base.source_operator import BaseSourceOperator
 
 from . import extensions
 from .settings import CustomSettingsModel
+
+if TYPE_CHECKING:
+	from melon.core.base.parsers.components.images_downloader import (
+		ImageDownloadingResult,
+	)
 
 class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	"""Оператор источника."""
@@ -174,3 +180,31 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		"""Метод, выполняющийся после инициализации объекта."""
 
 		self.__CheckerByID = self.extensions.run(extensions.ID_Checker)
+
+		# Доступ к этим доменам, вероятно, возможен только с территории стран СНГ.
+		# Также эти домены не требуют авторизации.
+		self.__russian_domains: tuple[str, ...] = (
+			"img3.reimg2.org",
+		)
+
+	@override
+	def _temp_image(self, url: str, force_mode: bool = False) -> "ImageDownloadingResult":
+		"""
+		Скачивает изображение по ссылке и сохраняет во временный каталог парсера.
+
+		:param url: Ссылка на изображение.
+		:type url: str
+		:param force_mode: Переключает режим перезаписи существующих изображений.
+		:type force_mode: bool
+		:return: Результат скачивания изображения.
+		:rtype: ImageDownloadingResult
+		"""
+		
+		if urlparse(url).netloc in self.__russian_domains:
+			self.images_downloader.requestor.config.headers.authorization.disable()
+
+		try:
+			return self._ImagesDownloader.temp_image(url, force_mode = force_mode)
+
+		finally:
+			self.images_downloader.requestor.config.headers.authorization.enable()
