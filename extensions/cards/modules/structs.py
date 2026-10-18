@@ -21,7 +21,7 @@ class AuthorData:
 
 		return {
 			"id": self.id,
-			"username": self.username
+			"username": self.username,
 		}
 
 @dataclass(frozen = True)
@@ -47,5 +47,5 @@ class CardData:
 			"rank": self.rank,
 			"images": [image.to_dict() for image in self.images],
 			"author": self.author.to_dict(),
-			"person": self.person
+			"person": self.person,
 		}

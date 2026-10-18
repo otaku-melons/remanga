@@ -10,7 +10,7 @@ class VariatorValueError(Exception):
 		:param message: Error message.
 		:type message: str
 		"""
-		
+
 		super().__init__(f"{variator} {message}")
 
 class UnknownVariatorError(Exception):
@@ -23,5 +23,5 @@ class UnknownVariatorError(Exception):
 		:param variator_name: Variator name.
 		:type variator_name: str
 		"""
-		
+
 		super().__init__(variator_name)

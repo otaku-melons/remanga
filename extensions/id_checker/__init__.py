@@ -54,7 +54,7 @@ class Extension(BaseExtension["SourceOperator"]):
 	@override
 	def _post_init(self):
 		"""Execute after instance initialization."""
-		
+
 		self.USED_BOOKMARKS_GROUP: Literal["Melon"] = "Melon"
 
 	#==========================================================================================#
@@ -75,7 +75,7 @@ class Extension(BaseExtension["SourceOperator"]):
 
 		Data: dict = {
 			"title": title_id,
-			"type": group_id
+			"type": group_id,
 		}
 		Response = self.requestor.post(f"https://{self.manifest.domain}/api/users/bookmarks/", json = Data)
 		Message: str | None = self.__GetMessageFromResponse(Response)
@@ -101,7 +101,7 @@ class Extension(BaseExtension["SourceOperator"]):
 		Data: dict = {
 			"name": name or self.USED_BOOKMARKS_GROUP,
 			"is_notify": "0",
-			"is_visible": "hide"
+			"is_visible": "hide",
 		}
 		Response = self.requestor.post(f"https://{self.manifest.domain}/api/v2/users/{user_id}/user_bookmarks/", json = Data)
 		JSON: dict | None = Response.json
@@ -130,7 +130,7 @@ class Extension(BaseExtension["SourceOperator"]):
 
 		if Response.ok and Response.json:
 			Results: list[dict] = Response.json["results"]
-			
+
 			for Result in Results:
 				GroupID: int = Result["id"]
 				GroupName: str = Result["name"]
@@ -138,7 +138,7 @@ class Extension(BaseExtension["SourceOperator"]):
 
 			return Bookmarks
 
-		else: 
+		else:
 			return self.portals.request_error(Response, "Failed to get bookmarks group.")
 
 	def get_current_user_id(self) -> int:
@@ -157,7 +157,7 @@ class Extension(BaseExtension["SourceOperator"]):
 			UserID: int = Response.json["id"]
 			return UserID
 
-		else: 
+		else:
 			return self.portals.request_error(Response, "Failed to get current user ID.")
 
 	def get_used_bookmark_group_id(self, user_id: int) -> int:
@@ -171,7 +171,7 @@ class Extension(BaseExtension["SourceOperator"]):
 		"""
 
 		Bookmarks: dict[int, str] = self.get_bookmarks_groups(user_id)
-		
+
 		for ID, Name in Bookmarks.items():
 			if Name == self.USED_BOOKMARKS_GROUP:
 				return ID
@@ -232,7 +232,7 @@ class Extension(BaseExtension["SourceOperator"]):
 		Params: dict = {
 			"type": group_id,
 			"ordering":"-date",
-			"page": 1
+			"page": 1,
 		}
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/users/{user_id}/bookmarks/", params = Params)
 

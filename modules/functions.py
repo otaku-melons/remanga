@@ -13,7 +13,7 @@ def MergeLists(value: list) -> list:
 	:return: Обработанный список.
 	:rtype: list
 	"""
-	
+
 	if len(value) > 0 and type(value[0]) is list:
 		return list(itertools.chain.from_iterable(value))
 

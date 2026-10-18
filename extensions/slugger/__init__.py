@@ -29,7 +29,7 @@ class Extension(BaseExtension["SourceOperator"]):
 			"count": "10",
 			"field": "titles",
 			"page": "1",
-			"query": name
+			"query": name,
 		}
 		Response = self.source_operator.requestor.get(f"https://{self.source_operator.manifest.domain}/api/v2/search/", params = Params)
 		if Response.ok and Response.json:
@@ -104,7 +104,7 @@ class Extension(BaseExtension["SourceOperator"]):
 
 		if not Descriptor or not Descriptor.slug or not Descriptor.id:
 			return False
-		
+
 		if title.data.slug != Descriptor.slug:
 			title.data.set_slug(Descriptor.slug)
 			self.source_operator.shared_data.journal.update(Descriptor.id, Descriptor.slug)

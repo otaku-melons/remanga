@@ -17,7 +17,7 @@ from .modules.functions import MergeLists
 
 if TYPE_CHECKING:
 	from dublib.web_requestor import WebResponse
-	
+
 	from melon.core.base.formats.manga.controller import Manga
 
 	from . import SourceOperator as SourceOperator
@@ -25,11 +25,11 @@ if TYPE_CHECKING:
 
 class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	"""Парсер."""
-	
+
 	#==========================================================================================#
 	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
-	
+
 	@override
 	def _amend(self, branch: Branch, chapter: Chapter) -> str | None:
 		"""
@@ -46,7 +46,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		Slides: list[ImageData] = self.__get_slides(chapter)
 		Message: str | None = None
 		self.source_operator.settings.custom
-		
+
 		if Slides:
 			FirstSlideLink: str = Slides[0].link
 
@@ -60,7 +60,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	@override
 	def _parse(self):
 		"""Получает основные данные тайтла."""
-		
+
 		title = cast("Manga", self.title)
 		response = self._get_title_data()
 
@@ -70,7 +70,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 			self.portals.title_not_found(title.data)
 
 		data: dict = response.json
-		
+
 		title.data.set_id(data["id"])
 		title.data.set_content_language("rus")
 		title.data.set_localized_name(data["main_name"])
@@ -106,7 +106,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	@override
 	def _post_init(self):
 		"""Execute after instance initialization."""
-	
+
 		self._IsPaidChaptersLocked = False
 
 		self.__ExManga = self.source_operator.run_extension(extensions.ExManga)
@@ -134,7 +134,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 			while True:
 				Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
 				BranchPage += 1
-				
+
 				if Response.ok and Response.json:
 					Data = Response.json["results"]
 					if not Data: break
@@ -152,14 +152,14 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 						if self.settings.custom.add_free_publication_date and Buffer.is_paid:
 							Buffer.extra_data.set("free-publication-date", CurrentChapter["pub_date"])
-						
+
 						CurrentBranch.add_chapter(Buffer)
 
 				else:
 					self.portals.request_error(Response, "Unable to request chapter.", exception = False)
 
 			CurrentBranch.reverse()
-			Title.data.add_branch(CurrentBranch)	
+			Title.data.add_branch(CurrentBranch)
 
 	def __get_slides(self, chapter: Chapter) -> list[ImageData]:
 		"""
@@ -193,7 +193,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 				self.portals.chapter_skipped(chapter)
 				return []
-			
+
 			for SlideData in SlidesData:
 				Link = SlideData["link"]
 				Width, Height = SlideData["width"], SlideData["height"]
@@ -222,7 +222,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 			"Маньхуа": Types.manhua,
 			"Рукомикс": Types.russian_comic,
 			"Западный комикс": Types.western_comic,
-			"Индонезийский комикс": Types.indonesian_comic
+			"Индонезийский комикс": Types.indonesian_comic,
 		}
 		SiteType = data["type"]["name"]
 		if SiteType in TypesDeterminations.keys(): Type = TypesDeterminations[SiteType]
@@ -238,7 +238,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		:return: Список слайдов главы.
 		:rtype: list[ImageData]
 		"""
-		
+
 		if not self.source_operator.extensions.is_enabled(extensions.ExManga):
 			return []
 
@@ -259,7 +259,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		for slide in filtered_slides:
 			slides.remove(slide)
-			
+
 		return slides
 
 	#==========================================================================================#
@@ -279,11 +279,11 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		Ratings = {
 			0: 0,
 			1: 16,
-			2: 18
+			2: 18,
 		}
 		Rating = Ratings[data["age_limit"]["id"]]
 
-		return Rating 	
+		return Rating
 
 	def _get_covers(self, data: dict):
 		"""
@@ -294,7 +294,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		"""
 
 		title = cast("Manga", self.title)
-		
+
 		covers_data: dict[str, str] = data["cover"]
 		covers: list[ImageData] = []
 
@@ -362,7 +362,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		Persons = []
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.id}/characters/?")
-		
+
 		if Response.ok and Response.json:
 
 			for PersonData in Response.json:
@@ -372,7 +372,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 				if PersonData["cover"]:
 					Buffer.add_image(ImageData(f"https://{self.manifest.domain}/media/" + PersonData["cover"]["high"]))
 					Buffer.add_image(ImageData(f"https://{self.manifest.domain}/media/" + PersonData["cover"]["mid"]))
-					
+
 				Buffer.set_description(HTML(PersonData["description"]).plain_text if PersonData["description"] else None)
 				Persons.append(Buffer)
 
@@ -395,7 +395,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 			"Анонс": Statuses.announced,
 			"Заморожен": Statuses.dropped,
 			"Нет переводчика": Statuses.dropped,
-			"Не переводится (лицензировано)": Statuses.dropped
+			"Не переводится (лицензировано)": Statuses.dropped,
 		}
 		SiteStatusIndex = data["status"]["name"]
 		if SiteStatusIndex in StatusesDetermination.keys(): Status = StatusesDetermination[SiteStatusIndex]
@@ -416,11 +416,11 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		for Tag in data["categories"]: Tags.append(Tag["name"])
 
 		return Tags
-	
+
 	def _get_title_data(self) -> "WebResponse":
 		"""
 		Запрашивает данные тайтла.
-		
+
 		Также при ошибке с кодом 404 пытается обновить алиас тайтла, если включено расширение **slugger**.
 
 		:return: Контейнер ответа на запрос.

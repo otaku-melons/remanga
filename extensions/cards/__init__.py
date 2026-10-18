@@ -1,5 +1,6 @@
 import os
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from melon.core.base.extensions import BaseExtension
 from melon.core.base.structs.image import ImageData
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 
 class Extension(BaseExtension["SourceOperator"]):
 	"""Scan slides on images servers."""
-	
+
 	#==========================================================================================#
 	# >>>>> PRIVATE METHODS <<<<< #
 	#==========================================================================================#
@@ -34,10 +35,10 @@ class Extension(BaseExtension["SourceOperator"]):
 		while True:
 			params: dict = {
 				"count": 30,
-				"page": page
+				"page": page,
 			}
 			response = self.source_operator.requestor.get(f"https://{self.manifest.domain}/api/inventory/{title_id}/cards/", params = params)
-			
+
 			if not response.ok or not response.json:
 				self.portals.request_error(response, "Failed to request card info.")
 
@@ -88,7 +89,7 @@ class Extension(BaseExtension["SourceOperator"]):
 
 		images_uri: list[str] = [
 			raw_data["cover"]["high"],
-			raw_data["cover"]["mid"]
+			raw_data["cover"]["mid"],
 		]
 		if self.source_operator.settings.custom.only_best_cover: images_uri.pop()
 		images: list[ImageData] = [ImageData(f"https://{self.manifest.domain}{uri}") for uri in images_uri]
@@ -98,7 +99,7 @@ class Extension(BaseExtension["SourceOperator"]):
 			rank = rank,
 			images = images,
 			author = AuthorData(raw_data["author"]["id"], raw_data["author"]["username"]),
-			person = raw_data["character"]["name"]
+			person = raw_data["character"]["name"],
 		)
 
 	#==========================================================================================#
@@ -144,7 +145,7 @@ class Extension(BaseExtension["SourceOperator"]):
 		:type cards_data: Sequence[CardData]
 		"""
 
-		title_cards_directory: "Path" = self.__get_cards_directory(used_title_name)
+		title_cards_directory: Path = self.__get_cards_directory(used_title_name)
 
 		for card in cards_data:
 			for image in card.images:

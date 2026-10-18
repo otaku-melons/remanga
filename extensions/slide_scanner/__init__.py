@@ -106,10 +106,10 @@ class Extension(BaseExtension["SourceOperator", Options]):
 			case "ov": return self.__make_variants_ov(value)
 			case "r": return self.__make_variants_r(variator, value)
 			case "v": return self.__make_variants_v(value)
-			
+
 			case _:
 				raise exceptions.UnknownVariatorError(name)
-		
+
 	#==========================================================================================#
 	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
@@ -142,7 +142,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 	def parse_query(self, query: str) -> ScanQuery:
 		"""
-		Parse scan query from query. Create variants ranges from variators. 
+		Parse scan query from query. Create variants ranges from variators.
 
 		Syntazis is `{variator:params}`. Available variators:
 		- r (*range*) – range of unsigned integers. For example `{r:1-3}` gives `("1", "2", "3")`.
@@ -166,7 +166,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		return ScanQuery(
 			query = query,
-			variants_map = variants
+			variants_map = variants,
 		)
 
 	def make_domains_variants(self, query_data: ScanQuery) -> tuple[str, ...]:
@@ -184,10 +184,10 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		for combination in itertools.product(*query_data.variants_map.values()):
 			current_domain = query_data.query
-			
+
 			for place, variant in zip(places, combination):
 				current_domain = current_domain.replace(place, variant)
-				
+
 			domains.append(current_domain)
 
 		return tuple(sorted(domains))

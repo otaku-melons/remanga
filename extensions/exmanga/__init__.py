@@ -87,7 +87,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		body: dict[str, str] = {
 			"email": self.options.email,
-			"password": self.options.password
+			"password": self.options.password,
 		}
 
 		response = self.__requestor.post(f"https://{self.__domain}/api/auth/login", json = body)
@@ -123,8 +123,8 @@ class Extension(BaseExtension["SourceOperator", Options]):
 				"preview": True,
 				"sidebar": True,
 				"theme": "dark",
-				"toolbar": True
-			}
+				"toolbar": True,
+			},
 		}
 
 		CookiesStrings: list[str] = []
@@ -147,7 +147,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 			return None
 
 		token: str = text.read(self.__token_file, split = False, strip_level = 1)
-		
+
 		if Bearer().is_jwt_expired(token):
 			return None
 
@@ -162,7 +162,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		:param save: Указывает, нужно ли сохранять токен.
 		:type save: bool
 		"""
-		
+
 		authorizator = Bearer()
 		authorizator.set_jwt(token)
 
@@ -194,7 +194,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		# При авторизации возвращается код 201.
 		Config.set_good_codes((200, 201))
-		
+
 		return WebRequestorObject
 
 	def __is_exmanga_stub(self, link: str) -> bool:
@@ -291,7 +291,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		ChapterSlidesDirectory = SlidesDirectory / str(chapter_id)
 		ChapterSlidesDirectory.mkdir(exist_ok = True)
-		
+
 		Future: ImageDownloadingFuture | None = None
 		if self.system_objects.options.DEBUG:
 			Future = self.portals.printer.templates.images.start_downloading(slide.filename, ImagesTypes.Slide)
@@ -301,9 +301,9 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		Result = self.__images_downloader.download_image(
 			url = slide.link,
 			directory = ChapterSlidesDirectory,
-			force_mode = force_mode
+			force_mode = force_mode,
 		)
-		
+
 		if Future: Future.result(Result)
 		if Result.path: slide.set_link(Result.path.resolve().as_uri())
 		if not slide.resolution: slide.set_resolution(Result.resolution)
@@ -326,7 +326,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		params: dict[str, int] = {"id": chapter_id}
 		response = self.requestor.get(f"https://{self.__domain}/api/chapter", params = params)
-		
+
 		if response.status_code == 404:
 			self.portals.printer.emit(f"Chapter {chapter_id}. Slides not found on ExManga server.")
 			return []

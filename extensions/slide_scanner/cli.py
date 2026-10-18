@@ -81,7 +81,7 @@ class CLI(BaseExtensionCLI["Extension"]):
 
 		self.printer.emit(f"Scanned {len(domains)} images servers variants.")
 		self.printer.emit(f"Image found on {ok_count} servers.")
-		
+
 	#==========================================================================================#
 	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
@@ -99,4 +99,3 @@ class CLI(BaseExtensionCLI["Extension"]):
 		position = model.create_position("URL", "Image link.", important = True)
 		position.set_argument(ValidableTypes.URL)
 		model.base.add_flag("-h", description = "Hide domain address resolution errors.")
-		

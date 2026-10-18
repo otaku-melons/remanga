@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	"""Оператор источника."""
-	
+
 	#==========================================================================================#
 	# >>>>> PROTECTED METHODS <<<<< #
 	#==========================================================================================#
@@ -29,7 +29,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		:param filters: Строка, описывающая параметры фильтрации.
 		:type filters: str | None
-		:param pages: Количество запрашиваемых страниц каталога.
+		:param pages: Requested pages count.
 		:type pages: int | None
 		:return: Набор собранных алиасов.
 		:rtype: list[str]
@@ -39,7 +39,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		IsCollected = False
 		Page = 1
 		MAX_CATALOG_PAGE = 999
-		
+
 		while not IsCollected:
 			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&ordering=-score&page={Page}&{filters}")
 
@@ -52,13 +52,13 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 				if Page == MAX_CATALOG_PAGE:
 					self.portals.printer.warning("Last catalog page reached: 999.")
 					IsCollected = True
-				
+
 				Page += 1
 
 			else: self.portals.request_error(Response, "Unable to request catalog.")
 
 		return Slugs
-	
+
 	def _collect_updates(self, period: int, pages: int | None = None) -> list[str]:
 		"""
 		Собирает алиасы тайтлов, обновлённых за указанный период времени (в часах).
@@ -86,7 +86,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		while not IsCollected:
 			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDateString}&last_chapter_uploaded_lte={NowString}&ordering=-score&page={Page}")
-			
+
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
 				for Note in PageContent: Slugs.append(Note["dir"])
@@ -96,7 +96,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 				if Page == MAX_CATALOG_PAGE:
 					self.portals.printer.warning("Last catalog page reached: 999.")
 					IsCollected = True
-				
+
 				Page += 1
 
 			else: self.portals.request_error(Response, "Unable to request catalog.")
@@ -104,7 +104,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		return Slugs
 
 	#==========================================================================================#
-	# >>>>> OVERRIDABLE METHODS <<<<< #
+	# >>>>> OVERRIDDEN METHODS <<<<< #
 	#==========================================================================================#
 
 	@override
@@ -131,7 +131,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		:type period: int | None
 		:param filters: Строка, описывающая параметры фильтрации.
 		:type filters: str | None
-		:param pages: Количество запрашиваемых страниц каталога.
+		:param pages: Requested pages count.
 		:type pages: int | None
 		:return: Набор собранных алиасов.
 		:rtype: Sequence[str]
@@ -162,7 +162,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		"""
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{slug}/")
-		
+
 		if Response.ok: return True
 		elif Response.status_code == 404:
 			if not self.extensions.is_enabled(extensions.ID_Checker): return False
@@ -200,7 +200,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		:return: Результат скачивания изображения.
 		:rtype: ImageDownloadingResult
 		"""
-		
+
 		if urlparse(url).netloc in self.__russian_domains:
 			self.images_downloader.requestor.config.headers.authorization.disable()
 
