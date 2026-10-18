@@ -23,4 +23,4 @@ For visual categorization of changes emojis are used in accordance with [gitmoji
 ### 🐛 Fixed
 - Max catalog page can be exceeded.
 - Collectiong progress missing in terminal.
-- Image server [img3.reimg2.org](https://img3.reimg2.org) accessable only if no token and from CIS countries.
+- Image server [img3.reimg2.org](https://img3.reimg2.org) accessible only if no token and from CIS countries.
