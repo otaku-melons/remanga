@@ -1,10 +1,7 @@
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel
 
-from melon.core.base.extensions.options import BaseExtensionOptions
-
-@dataclass(frozen = True)
-class Options(BaseExtensionOptions):
-	"""Опции расширения."""
+class Options(BaseModel):
+	"""Extension options model."""
 
 	email: str
 	password: str

@@ -1,9 +1,6 @@
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel
 
-from melon.core.base.extensions.options import BaseExtensionOptions
+class Options(BaseModel):
+	"""Extension options model."""
 
-@dataclass(frozen = True)
-class Options(BaseExtensionOptions):
-	"""Опции расширения."""
-
-	query: str = "img{r:1-6}{ov:-reserve}.reimg{ov:2}.org"
+	query: str = "img{or:1-6}{ov:-reserve}.reimg{ov:2}.org"

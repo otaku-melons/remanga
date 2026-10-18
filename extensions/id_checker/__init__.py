@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Literal, override
 
 from melon.core.base.extensions import BaseExtension
-from melon.core.base.extensions.options import BaseExtensionOptions
 
 from .enums import BookmarkCreatioinResults
 
@@ -10,7 +9,7 @@ if TYPE_CHECKING:
 
 	from ... import SourceOperator as SourceOperator
 
-class Extension(BaseExtension["SourceOperator", "BaseExtensionOptions"]):
+class Extension(BaseExtension["SourceOperator"]):
 	"""Расширение."""
 
 	#==========================================================================================#
@@ -24,7 +23,7 @@ class Extension(BaseExtension["SourceOperator", "BaseExtensionOptions"]):
 		return self.source_operator.requestor
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PRIVATE METHODS <<<<< #
 	#==========================================================================================#
 
 	def __GetMessageFromResponse(self, response: "WebResponse") -> str | None:
@@ -49,28 +48,17 @@ class Extension(BaseExtension["SourceOperator", "BaseExtensionOptions"]):
 			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
 
 	#==========================================================================================#
-	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
+	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
 
 	@override
-	def _export_options_model(self) -> type[BaseExtensionOptions]:
-		"""
-		Возвращает модель опций.
-
-		:return: Модель опций.
-		:rtype: type[BaseExtensionOptions]
-		"""
-
-		return BaseExtensionOptions
-
-	@override
 	def _post_init(self):
-		"""Метод, выполняющийся после инициализации объекта."""
+		"""Execute after instance initialization."""
 		
 		self.USED_BOOKMARKS_GROUP: Literal["Melon"] = "Melon"
 
 	#==========================================================================================#
-	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PUBLIC METHODS <<<<< #
 	#==========================================================================================#
 
 	def add_bookmark(self, title_id: int, group_id: int) -> BookmarkCreatioinResults:

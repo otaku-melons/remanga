@@ -1,6 +1,7 @@
 import math
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Sequence, override
+from typing import TYPE_CHECKING, override
 from urllib.parse import urlparse
 
 from dublib.web_requestor.config.authorization import Bearer
@@ -8,7 +9,7 @@ from dublib.web_requestor.config.authorization import Bearer
 from melon.core.base.source_operator import BaseSourceOperator
 
 from . import extensions
-from .settings import CustomSettingsModel
+from .custom import CustomSettingsModel
 
 if TYPE_CHECKING:
 	from melon.core.base.parsers.components.images_downloader import (
@@ -17,9 +18,9 @@ if TYPE_CHECKING:
 
 class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	"""Оператор источника."""
-
+	
 	#==========================================================================================#
-	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PROTECTED METHODS <<<<< #
 	#==========================================================================================#
 
 	def _collect_catalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
@@ -103,7 +104,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		return Slugs
 
 	#==========================================================================================#
-	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
+	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
 
 	@override
@@ -177,9 +178,9 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 	@override
 	def _post_init(self):
-		"""Метод, выполняющийся после инициализации объекта."""
+		"""Execute after instance initialization."""
 
-		self.__CheckerByID = self.extensions.run(extensions.ID_Checker)
+		self.__CheckerByID = self.run_extension(extensions.ID_Checker)
 
 		# Доступ к этим доменам, вероятно, возможен только с территории стран СНГ.
 		# Также эти домены не требуют авторизации.

@@ -13,7 +13,7 @@ from melon.core.base.parsers.manga import BaseMangaParser
 from melon.core.base.structs.image import ImageData
 
 from . import extensions
-from .src.functions import MergeLists
+from .modules.functions import MergeLists
 
 if TYPE_CHECKING:
 	from dublib.web_requestor import WebResponse
@@ -21,13 +21,13 @@ if TYPE_CHECKING:
 	from melon.core.base.formats.manga.controller import Manga
 
 	from . import SourceOperator as SourceOperator
-	from .settings import CustomSettingsModel as CustomSettingsModel
+	from .custom import CustomSettingsModel as CustomSettingsModel
 
 class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	"""Парсер."""
-
+	
 	#==========================================================================================#
-	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
+	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
 	
 	@override
@@ -60,44 +60,60 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	@override
 	def _parse(self):
 		"""Получает основные данные тайтла."""
+		
+		title = cast("Manga", self.title)
+		response = self._get_title_data()
 
-		Title = cast("Manga", self.title)
-		Response = self._get_title_data()
+		if not response.ok or not response.json:
+			self.portals.request_error(response, "Unable to request title data.")
+		elif response.status_code == 404:
+			self.portals.title_not_found(title.data)
 
-		if Response.ok and Response.json:
-			Data = Response.json
-			
-			Title.data.set_id(Data["id"])
-			Title.data.set_content_language("rus")
-			Title.data.set_localized_name(Data["main_name"])
-			Title.data.set_eng_name(Data["secondary_name"])
-			Title.data.set_another_names(Data["another_name"].split(" / "))
-			self._get_covers(Data)
-			Title.data.set_publication_year(Data["issue_year"])
-			Title.data.set_description(self._get_description(Data))
-			Title.data.set_age_limit(self._get_age_limit(Data))
-			Title.data.set_title_type(self.__get_type(Data))
-			Title.data.set_status(self._get_status(Data))
-			Title.data.set_is_licensed(Data["is_licensed"])
-			Title.data.set_genres(self._get_genres(Data))
-			Title.data.set_tags(self._get_tags(Data))
-			Title.data.set_persons(self._get_persons())
-			self.__get_branches(Data)
+		data: dict = response.json
+		
+		title.data.set_id(data["id"])
+		title.data.set_content_language("rus")
+		title.data.set_localized_name(data["main_name"])
+		title.data.set_eng_name(data["secondary_name"])
+		title.data.set_another_names(data["another_name"].split(" / "))
+		self._get_covers(data)
+		title.data.set_publication_year(data["issue_year"])
+		title.data.set_description(self._get_description(data))
+		title.data.set_age_limit(self._get_age_limit(data))
+		title.data.set_title_type(self.__get_type(data))
+		title.data.set_status(self._get_status(data))
+		title.data.set_is_licensed(data["is_licensed"])
+		title.data.set_genres(self._get_genres(data))
+		title.data.set_tags(self._get_tags(data))
+		title.data.set_persons(self._get_persons())
+		self.__get_branches(data)
 
-		elif Response.status_code == 404: self.portals.title_not_found(Title.data)
-		else: self.portals.request_error(Response, "Unable to request title data.")
+		if self.source_operator.extensions.is_enabled(extensions.Cards):
+			title.data.set_extra_data("cards", [], target_key = "persons")
+
+			cards_extension = self.source_operator.extensions.run(self.source_operator, extensions.Cards)
+			cards_data = cards_extension.get_cards_data(data["id"])
+
+			self.portals.printer.emit(f"Cards parsed {len(cards_data)}.")
+			title.data.set_extra_data("cards", [card_data.to_dict() for card_data in cards_data])
+
+			cards_extension.download_cards(title.used_filename, cards_data)
+			removed_images_count: int = cards_extension.clear_unused_cards_images(title.used_filename, cards_data)
+
+			if removed_images_count:
+				self.portals.printer.emit(f"Unused cards images removed: {removed_images_count}.")
 
 	@override
 	def _post_init(self):
-		"""Метод, выполняющийся после инициализации объекта."""
+		"""Execute after instance initialization."""
 	
 		self._IsPaidChaptersLocked = False
 
-		self.__ExManga = self.source_operator.extensions.run(extensions.ExManga)
-		self.__Slugger = self.source_operator.extensions.run(extensions.Slugger)
+		self.__ExManga = self.source_operator.run_extension(extensions.ExManga)
+		self.__Slugger = self.source_operator.run_extension(extensions.Slugger)
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
+	# >>>>> PRIVATE METHODS ПАРСИНГА <<<<< #
 	#==========================================================================================#
 
 	def __get_branches(self, data: dict):
@@ -247,7 +263,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		return slides
 
 	#==========================================================================================#
-	# >>>>> НАСЛЕДУЕМЫЕ МЕТОДЫ ПАРСИНГА <<<<< #
+	# >>>>> PROTECTED METHODS ПАРСИНГА <<<<< #
 	#==========================================================================================#
 
 	def _get_age_limit(self, data: dict) -> int:

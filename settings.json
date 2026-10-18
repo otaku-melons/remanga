@@ -1,7 +1,7 @@
 {
 	"filters": {
 		"images": {
-			"singatures": [
+			"signatures": [
 				"v2.100.9b6364a6db996c24",
 				"v2.100.c6ce69799987c660"
 			]

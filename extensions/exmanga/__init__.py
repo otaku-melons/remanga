@@ -15,7 +15,7 @@ from melon.core.base.parsers.components.images_downloader import (
 )
 from melon.core.base.structs.image import ImageData
 
-from ...src import functions
+from ...modules import functions
 from .options import Options
 
 if TYPE_CHECKING:
@@ -63,19 +63,19 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		return authorization_method.value
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ АВТОРИЗАЦИИ <<<<< #
+	# >>>>> PRIVATE METHODS АВТОРИЗАЦИИ <<<<< #
 	#==========================================================================================#
 
 	def __authorizate(self):
 		"""Выполняет процедуры авторизации."""
 
 		token: str | None = self.__read_token()
-		is_token_readed: bool = bool(token)
+		is_token_read: bool = bool(token)
 
 		if not token:
 			token = self.__get_token()
 
-		self.__set_token(token, save = not is_token_readed)
+		self.__set_token(token, save = not is_token_read)
 
 	def __get_token(self) -> str:
 		"""
@@ -172,7 +172,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		if save: text.write(self.__token_file, self.token)
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PRIVATE METHODS <<<<< #
 	#==========================================================================================#
 
 	def __initialize_requestor(self) -> WebRequestor:
@@ -234,7 +234,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		return Buffer
 
 	#==========================================================================================#
-	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
+	# >>>>> OVERRIDABLE METHODS <<<<< #
 	#==========================================================================================#
 
 	@override
@@ -250,7 +250,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 	@override
 	def _post_init(self):
-		"""Метод, выполняющийся после инициализации объекта."""
+		"""Execute after instance initialization."""
 
 		self.__requestor: WebRequestor = self.__initialize_requestor()
 		self.__images_downloader: ImagesDownloader = ImagesDownloader(self._source_operator)
@@ -262,7 +262,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		self.__authorizate()
 
 	#==========================================================================================#
-	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PUBLIC METHODS <<<<< #
 	#==========================================================================================#
 
 	def download_slide(self, title: "Manga", chapter_id: int, slide: ImageData, force_mode: bool = False) -> ImageDownloadingResult:
@@ -310,14 +310,14 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		return Result
 
-	def get_slides_data(self, chapter_id: int, is_token_refershed: bool = False) -> list[ImageData]:
+	def get_slides_data(self, chapter_id: int, is_token_refreshed: bool = False) -> list[ImageData]:
 		"""
 		Пытается получить данные слайдов главы. В случае успеха скачивает их в каталог слайдов главы.
 
 		:param chapter_id: ID главы.
 		:type chapter_id: int
-		:param is_token_refershed: Указывает, обновлён ли токен перед выполнением метода. Позволяет избежать бесконечной рекурсии при невозможности авторизации.
-		:type is_token_refershed: bool
+		:param is_token_refreshed: Указывает, обновлён ли токен перед выполнением метода. Позволяет избежать бесконечной рекурсии при невозможности авторизации.
+		:type is_token_refreshed: bool
 		:return: Список данных слайдов (пуста при невозможности получения).
 		:rtype: list[ImageData]
 		"""
@@ -333,10 +333,10 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		elif response.status_code == 401:
 
-			if not is_token_refershed:
+			if not is_token_refreshed:
 				token: str = self.__get_token()
 				self.__set_token(token)
-				return self.get_slides_data(chapter_id, is_token_refershed = True)
+				return self.get_slides_data(chapter_id, is_token_refreshed = True)
 
 			else:
 				self.portals.authorization_required("Unable authorizate with refreshed token.")

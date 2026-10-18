@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING
 
 from melon.core.base.extensions import BaseExtension
-from melon.core.base.extensions.options import BaseExtensionOptions
 from melon.core.base.structs.title import TitleDescriptor
 
 if TYPE_CHECKING:
@@ -9,11 +8,11 @@ if TYPE_CHECKING:
 
 	from ... import SourceOperator as SourceOperator
 
-class Extension(BaseExtension["SourceOperator", BaseExtensionOptions]):
+class Extension(BaseExtension["SourceOperator"]):
 	"""Расширение."""
 
 	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PRIVATE METHODS <<<<< #
 	#==========================================================================================#
 
 	def __SearchByName(self, name: str) -> list[TitleDescriptor]:
@@ -51,7 +50,7 @@ class Extension(BaseExtension["SourceOperator", BaseExtensionOptions]):
 		:rtype: list[TitleDescriptor]
 		"""
 
-		Identificators: list[TitleDescriptor] = []
+		Identifiers: list[TitleDescriptor] = []
 
 		for Data in results:
 			ID: int = Data["id"]
@@ -59,27 +58,12 @@ class Extension(BaseExtension["SourceOperator", BaseExtensionOptions]):
 			Buffer = TitleDescriptor(self.source_operator)
 			Buffer.set_id(ID)
 			Buffer.set_slug(Slug)
-			Identificators.append(Buffer)
+			Identifiers.append(Buffer)
 
-		return Identificators
-
-	#==========================================================================================#
-	# >>>>> ПЕРЕОПРЕДЕЛЯЕМЫЕ МЕТОДЫ <<<<< #
-	#==========================================================================================#
-
-	@override
-	def _export_options_model(self) -> type[BaseExtensionOptions]:
-		"""
-		Возвращает модель опций.
-
-		:return: Модель опций.
-		:rtype: type[BaseExtensionOptions]
-		"""
-
-		return BaseExtensionOptions
+		return Identifiers
 
 	#==========================================================================================#
-	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
+	# >>>>> PUBLIC METHODS <<<<< #
 	#==========================================================================================#
 
 	def get_title_descriptor_by_name(self, title: "Manga") -> TitleDescriptor | None:
