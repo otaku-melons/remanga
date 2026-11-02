@@ -4,18 +4,14 @@ from melon.core.base.extensions import BaseExtension
 from melon.core.base.structs.title import TitleDescriptor
 
 if TYPE_CHECKING:
-	from melon.core.base.formats.manga.controller import Manga
+	from melon.core.base.formats.base_format.data import BaseTitleData
 
 	from ... import SourceOperator as SourceOperator
 
 class Extension(BaseExtension["SourceOperator"]):
-	"""Расширение."""
+	"""Title slug updater."""
 
-	#==========================================================================================#
-	# >>>>> PRIVATE METHODS <<<<< #
-	#==========================================================================================#
-
-	def __SearchByName(self, name: str) -> list[TitleDescriptor]:
+	def __search_by_name(self, name: str) -> list[TitleDescriptor]:
 		"""
 		Получает до 10 тайтлов методом поиска в каталоге по названию.
 
@@ -34,13 +30,13 @@ class Extension(BaseExtension["SourceOperator"]):
 		Response = self.source_operator.requestor.get(f"https://{self.source_operator.manifest.domain}/api/v2/search/", params = Params)
 		if Response.ok and Response.json:
 			Results: list[dict] = Response.json["results"]
-			return self.__SearchResultsToStructs(Results)
+			return self.__search_results_to_structs(Results)
 
 		else: self.source_operator.portals.request_error(Response, "Search by name failed.")
 
 		return []
 
-	def __SearchResultsToStructs(self, results: list[dict]) -> list[TitleDescriptor]:
+	def __search_results_to_structs(self, results: list[dict]) -> list[TitleDescriptor]:
 		"""
 		Преобразует список результатов поиска в идентификаторы тайтлов.
 
@@ -62,53 +58,50 @@ class Extension(BaseExtension["SourceOperator"]):
 
 		return Identifiers
 
-	#==========================================================================================#
-	# >>>>> PUBLIC METHODS <<<<< #
-	#==========================================================================================#
-
-	def get_title_descriptor_by_name(self, title: "Manga") -> TitleDescriptor | None:
+	def get_title_descriptor_by_name(self, data: "BaseTitleData") -> TitleDescriptor | None:
 		"""
-		Пытается получить дескриптор тайтла методом поиска по названию.
+		GEt title descriptor by name.
 
-		:param title: Тайтл.
-		:type title: Manga
-		:raises ValueError: В тайтле не заполнены обязательные поля.
-		:return: Дескриптор тайтла или `None` при неудаче.
-		:rtype: TitleDescriptor | None
+		Args:
+			data (BaseTitleData): Title data.
+
+		Raises:
+			ValueError: Missing title ID or localized name.
+
+		Returns:
+			TitleDescriptor | None: Title descriptor or `None` if not found.
 		"""
 
-		if not title.data.id:
+		if not data.id:
 			raise ValueError("Title must have ID for this operation.")
 
-		if not title.data.localized_name:
+		if not data.localized_name:
 			raise ValueError("Title must have localized name for this operation.")
 
-		for Descriptor in self.__SearchByName(title.data.localized_name):
-			if title.data.id == Descriptor.id:
+		for Descriptor in self.__search_by_name(data.localized_name):
+			if data.id == Descriptor.id:
 				return Descriptor
 
-		return None
-
-	def update_title_slug(self, title: "Manga") -> bool:
+	def update_title_slug(self, data: "BaseTitleData") -> bool:
 		"""
-		Обновляет алиас тайтла, пытаясь обнаружить название последнего в каталоге и сравнить ID.
+		Try to title slug.
 
-		:param title: Тайтл.
-		:type title: Manga
-		:raises ValueError: В тайтле не заполнены обязательные поля.
-		:return: Возвращает `True`, если алиас тайтла изменился.
-		:rtype: bool
+		Args:
+			data (BaseTitleData): Title data.
+
+		Returns:
+			bool: `True` if title slug changed.
 		"""
 
-		Descriptor: TitleDescriptor | None = self.get_title_descriptor_by_name(title)
+		descriptor: TitleDescriptor | None = self.get_title_descriptor_by_name(data)
 
-		if not Descriptor or not Descriptor.slug or not Descriptor.id:
+		if not descriptor or not descriptor.slug or not descriptor.id:
 			return False
 
-		if title.data.slug != Descriptor.slug:
-			title.data.set_slug(Descriptor.slug)
-			self.source_operator.shared_data.journal.update(Descriptor.id, Descriptor.slug)
-			self.portals.printer.emit(f"Slug updated: <i>{Descriptor.slug}</i>.")
+		if data.slug != descriptor.slug:
+			data.set_slug(descriptor.slug)
+			self.source_operator.shared_data.journal.update(descriptor.id, descriptor.slug)
+			self.portals.printer.emit(f"Slug updated: <i>{descriptor.slug}</i>.")
 			return True
 
 		return False

@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from dublib.cli.text_styler import FastStyler
-from dublib.validators import ValidableTypes
+from dublib.cli.text_styler import TextStyler
+from dublib.validators import ValidableType
 
 from melon.core.base.extensions.cli import BaseExtensionCLI
 
@@ -30,16 +30,18 @@ class CLI(BaseExtensionCLI["Extension"]):
 		:rtype: str
 		"""
 
+		styler = TextStyler()
+
 		if response.status_code is None:
-			return FastStyler("error").colorize.red
+			return styler.convert("[red]error[/]")
 
 		if response.ok:
-			return FastStyler(f"{response.status_code} OK").colorize.green
+			return styler.convert(f"[green]{response.status_code} OK[/]")
 
 		if response.status_code in (403,):
-			return FastStyler(f"{response.status_code}").colorize.yellow
+			return styler.convert(f"[yellow]{response.status_code}[/]")
 
-		return FastStyler(str(response.status_code)).colorize.red
+		return styler.convert(f"[red]{response.status_code}[/]")
 
 	#==========================================================================================#
 	# >>>>> PRIVATE COMMANDS HANDLERS <<<<< #
@@ -97,5 +99,5 @@ class CLI(BaseExtensionCLI["Extension"]):
 		model = group.create_model("scan", description = "Scan slides on images servers.")
 		model.register_handler(self.__handler_scan)
 		position = model.create_position("URL", "Image link.", important = True)
-		position.set_argument(ValidableTypes.URL)
+		position.set_argument(ValidableType.URL)
 		model.base.add_flag("-h", description = "Hide domain address resolution errors.")

@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For visual categorization of changes emojis are used in accordance with [gitmoji](https://gitmoji.dev).
 
-## [2.6.0] - YYYY-MM-DD
+## [2.7.0]
+
+### ✨ Added
+- Slugger extension now can work with ranobe.
+
+### 🎨 Changed
+- Main parser logic separated into core for using in childrens.
+
+## [2.6.0] - 2026-10-23
 
 ### ✨ Added
 - ExManga extension for receiving slides from [ExManga](https://exmanga.org).

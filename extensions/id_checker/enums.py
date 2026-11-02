@@ -1,6 +1,6 @@
 from enum import Enum
 
-class BookmarkCreatioinResults(Enum):
+class BookmarkCreatioinResult(Enum):
 	"""Результаты добавления закладки."""
 
 	OK = None

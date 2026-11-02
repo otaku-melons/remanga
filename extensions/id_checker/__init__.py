@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Literal, override
 
 from melon.core.base.extensions import BaseExtension
 
-from .enums import BookmarkCreatioinResults
+from .enums import BookmarkCreatioinResult
 
 if TYPE_CHECKING:
 	from dublib.web_requestor import WebRequestor, WebResponse
@@ -13,7 +13,7 @@ class Extension(BaseExtension["SourceOperator"]):
 	"""Расширение."""
 
 	#==========================================================================================#
-	# >>>>> СВОЙСТВА <<<<< #
+	# >>>>> PROPERTIES <<<<< #
 	#==========================================================================================#
 
 	@property
@@ -61,7 +61,7 @@ class Extension(BaseExtension["SourceOperator"]):
 	# >>>>> PUBLIC METHODS <<<<< #
 	#==========================================================================================#
 
-	def add_bookmark(self, title_id: int, group_id: int) -> BookmarkCreatioinResults:
+	def add_bookmark(self, title_id: int, group_id: int) -> BookmarkCreatioinResult:
 		"""
 		Добавляет тайтл в закладки.
 
@@ -70,7 +70,7 @@ class Extension(BaseExtension["SourceOperator"]):
 		:param group_id: ID группы закладок.
 		:type group_id: int
 		:return: Результаты добавления закладки.
-		:rtype: BookmarkCreatioinResults
+		:rtype: BookmarkCreatioinResult
 		"""
 
 		Data: dict = {
@@ -80,11 +80,11 @@ class Extension(BaseExtension["SourceOperator"]):
 		Response = self.requestor.post(f"https://{self.manifest.domain}/api/users/bookmarks/", json = Data)
 		Message: str | None = self.__GetMessageFromResponse(Response)
 
-		for ResponseType in BookmarkCreatioinResults:
+		for ResponseType in BookmarkCreatioinResult:
 			if ResponseType.value == Message:
 				return ResponseType
 
-		return BookmarkCreatioinResults.OK
+		return BookmarkCreatioinResult.OK
 
 	def create_bookmarks_group(self, user_id: int, name: str | None = None) -> int:
 		"""
@@ -192,13 +192,13 @@ class Extension(BaseExtension["SourceOperator"]):
 
 		UserID: int = self.get_current_user_id()
 		UsedGroupID: int = self.get_used_bookmark_group_id(UserID)
-		AddingResult: BookmarkCreatioinResults = self.add_bookmark(title_id, UsedGroupID)
+		AddingResult: BookmarkCreatioinResult = self.add_bookmark(title_id, UsedGroupID)
 
 		IsTitleExists: bool | None = None
 
 		match AddingResult:
 
-			case BookmarkCreatioinResults.OK:
+			case BookmarkCreatioinResult.OK:
 				if self.is_title_in_bookmarks_group(UserID, UsedGroupID, title_id):
 					IsTitleExists = True
 				else:
@@ -207,11 +207,11 @@ class Extension(BaseExtension["SourceOperator"]):
 
 				self.remove_bookmark(title_id)
 
-			case BookmarkCreatioinResults.TITLE_ALREADY_IN_GROUP:
+			case BookmarkCreatioinResult.TITLE_ALREADY_IN_GROUP:
 				IsTitleExists = True
 				self.remove_bookmark(title_id)
 
-			case BookmarkCreatioinResults.DENY:
+			case BookmarkCreatioinResult.DENY:
 				self.portals.printer.warning("Bookmark creation denied. Checking skipped.")
 
 		return IsTitleExists

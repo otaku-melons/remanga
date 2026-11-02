@@ -92,7 +92,7 @@ class Extension(BaseExtension["SourceOperator"]):
 			raw_data["cover"]["mid"],
 		]
 		if self.source_operator.settings.custom.only_best_cover: images_uri.pop()
-		images: list[ImageData] = [ImageData(f"https://{self.manifest.domain}{uri}") for uri in images_uri]
+		images: list[ImageData] = [ImageData(f"https://{self.manifest.domain}{uri}", None) for uri in images_uri]
 
 		return CardData(
 			id = card_id,

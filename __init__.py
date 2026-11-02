@@ -12,7 +12,7 @@ from . import extensions
 from .custom import CustomSettingsModel
 
 if TYPE_CHECKING:
-	from melon.core.base.parsers.components.images_downloader import (
+	from melon.core.base.parser.components.images_downloader import (
 		ImageDownloadingResult,
 	)
 
@@ -170,17 +170,18 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 			TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
 			if not TitleID: return False
 
-			return self.__CheckerByID.is_title_exists_by_id(TitleID)
+			if self.__id_checker:
+				return self.__id_checker.is_title_exists_by_id(TitleID)
 
 		else: self.portals.request_error(Response, "Failed to check title existing.")
 
-		return None
+		return
 
 	@override
 	def _post_init(self):
 		"""Execute after instance initialization."""
 
-		self.__CheckerByID = self.run_extension(extensions.ID_Checker)
+		self.__id_checker: extensions.ID_Checker | None = self.run_extension(extensions.ID_Checker)
 
 		# Доступ к этим доменам, вероятно, возможен только с территории стран СНГ.
 		# Также эти домены не требуют авторизации.

@@ -1,104 +1,92 @@
-from typing import TYPE_CHECKING, cast, override
-
-from dublib.functions.data import zerotify
-from dublib.functions.data.string import remove_recurring_substrings
-from dublib.polyglot import HTML
+from typing import TYPE_CHECKING, override
 
 from melon.core.base.formats.base_format.branch import Branch
-from melon.core.base.formats.base_format.enums import Statuses
-from melon.core.base.formats.base_format.person import Person
 from melon.core.base.formats.manga.chapter import Chapter
-from melon.core.base.formats.manga.enums import Types
-from melon.core.base.parsers.manga import BaseMangaParser
-from melon.core.base.structs.image import ImageData
+from melon.core.base.formats.manga.enums import Type
+from melon.core.base.parser.presets import BaseMangaParser
+from melon.core.base.structs.image import ImageData, ImageType
 
 from . import extensions
+from .modules.core import ParserCore
 from .modules.functions import MergeLists
 
 if TYPE_CHECKING:
-	from dublib.web_requestor import WebResponse
-
-	from melon.core.base.formats.manga.controller import Manga
-
 	from . import SourceOperator as SourceOperator
 	from .custom import CustomSettingsModel as CustomSettingsModel
+	from .extensions.cards import CardData
 
 class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
-	"""Парсер."""
+	"""Parser."""
 
-	#==========================================================================================#
-	# >>>>> OVERRIDABLE METHODS <<<<< #
-	#==========================================================================================#
+	@property
+	def core(self) -> ParserCore:
+		"""Content type independent parser core."""
+
+		return self.__core
+
+	@property
+	def exmanga(self) -> extensions.ExManga | None:
+		"""Extension: ExManga parser."""
+
+		return self.__exmanga
+
+	@property
+	def is_paid_chapters_locked(self) -> bool:
+		"""Condition: is paid chapter locked."""
+
+		return self.__is_paid_chapters_locked
+
+	@property
+	def slugger(self) -> extensions.Slugger | None:
+		"""Extension: title slug updater."""
+
+		return self.__core.slugger
 
 	@override
 	def _amend(self, branch: Branch, chapter: Chapter) -> str | None:
 		"""
-		Дополняет главу дайными о контенте.
+		Amend chapter content.
 
-		:param branch: Ветвь.
-		:type branch: Branch
-		:param chapter: Глава.
-		:type chapter: Chapter
-		:return: Дополнительное необязательное сообщение о дополнении.
-		:rtype: str | None
+		Args:
+			branch (Branch): Branch.
+			chapter (Any): Chapter
+
+		Returns:
+			str | None: Optional additional message about amending result.
 		"""
 
-		Slides: list[ImageData] = self.__get_slides(chapter)
-		Message: str | None = None
-		self.source_operator.settings.custom
+		slides: tuple[ImageData, ...] = self.__get_slides(chapter)
+		message: str | None = None
 
-		if Slides:
-			FirstSlideLink: str = Slides[0].link
+		if slides:
+			first_slide_link: str = slides[0].link
 
-			if FirstSlideLink.startswith("file:") or self.__ExManga.domain in FirstSlideLink:
-				Message = "Received from ExManga."
+			if self.exmanga and self.exmanga.domain in first_slide_link:
+				message = "Received from ExManga."
 
-			chapter.set_slides(Slides)
+			chapter.set_slides(slides)
 
-		return Message
+		return message
 
 	@override
 	def _parse(self):
-		"""Получает основные данные тайтла."""
+		"""Parse title data witchout chapters content."""
 
-		title = cast("Manga", self.title)
-		response = self._get_title_data()
+		data: dict = self.core.parse_main_data()
 
-		if not response.ok or not response.json:
-			self.portals.request_error(response, "Unable to request title data.")
-		elif response.status_code == 404:
-			self.portals.title_not_found(title.data)
-
-		data: dict = response.json
-
-		title.data.set_id(data["id"])
-		title.data.set_content_language("rus")
-		title.data.set_localized_name(data["main_name"])
-		title.data.set_eng_name(data["secondary_name"])
-		title.data.set_another_names(data["another_name"].split(" / "))
-		self._get_covers(data)
-		title.data.set_publication_year(data["issue_year"])
-		title.data.set_description(self._get_description(data))
-		title.data.set_age_limit(self._get_age_limit(data))
-		title.data.set_title_type(self.__get_type(data))
-		title.data.set_status(self._get_status(data))
-		title.data.set_is_licensed(data["is_licensed"])
-		title.data.set_genres(self._get_genres(data))
-		title.data.set_tags(self._get_tags(data))
-		title.data.set_persons(self._get_persons())
-		self.__get_branches(data)
+		self.__get_title_type(data)
 
 		if self.source_operator.extensions.is_enabled(extensions.Cards):
-			title.data.set_extra_data("cards", [], target_key = "persons")
+			self.title.data.set_extra_data("cards", [], target_key = "persons")
 
-			cards_extension = self.source_operator.extensions.run(self.source_operator, extensions.Cards)
-			cards_data = cards_extension.get_cards_data(data["id"])
+			cards: extensions.Cards = self.source_operator.run_extension(extensions.Cards, force = True)
+			cards_data: tuple[CardData, ...] = cards.get_cards_data(data["id"])
 
 			self.portals.printer.emit(f"Cards parsed {len(cards_data)}.")
-			title.data.set_extra_data("cards", [card_data.to_dict() for card_data in cards_data])
+			self.title.data.set_extra_data("cards", [card_data.to_dict() for card_data in cards_data])
 
-			cards_extension.download_cards(title.used_filename, cards_data)
-			removed_images_count: int = cards_extension.clear_unused_cards_images(title.used_filename, cards_data)
+			cards.download_cards(self.title.used_filename, cards_data)
+			removed_images_count: int = cards.clear_unused_cards_images(self.title.used_filename, cards_data)
 
 			if removed_images_count:
 				self.portals.printer.emit(f"Unused cards images removed: {removed_images_count}.")
@@ -107,152 +95,104 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	def _post_init(self):
 		"""Execute after instance initialization."""
 
-		self._IsPaidChaptersLocked = False
+		self.__is_paid_chapters_locked: bool = False
+		self.__core: ParserCore = ParserCore(self, Chapter)
+		self.__exmanga: extensions.ExManga | None = self.source_operator.run_extension(extensions.ExManga)
 
-		self.__ExManga = self.source_operator.run_extension(extensions.ExManga)
-		self.__Slugger = self.source_operator.run_extension(extensions.Slugger)
-
-	#==========================================================================================#
-	# >>>>> PRIVATE METHODS ПАРСИНГА <<<<< #
-	#==========================================================================================#
-
-	def __get_branches(self, data: dict):
+	def __get_slides(self, chapter: Chapter) -> tuple[ImageData, ...]:
 		"""
-		Получает ветви тайтла.
+		Get chapter slides.
 
-		:param data: Словарь данных тайтла.
-		:type data: dict
+		Args:
+			chapter (Chapter): Chapter.
+
+		Returns:
+			tuple[ImageData, ...]: Chapters slides data.
 		"""
 
-		Title = cast("Manga", self.title)
+		slides: list[ImageData] = []
 
-		for CurrentBranchData in data["branches"]:
-			BranchID = CurrentBranchData["id"]
-			CurrentBranch = Branch(BranchID)
-			BranchPage = 1
-
-			while True:
-				Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
-				BranchPage += 1
-
-				if Response.ok and Response.json:
-					Data = Response.json["results"]
-					if not Data: break
-
-					for CurrentChapter in Data:
-						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
-						Name: str | None = CurrentChapter["name"] if CurrentChapter["name"] != "null" else None
-
-						Buffer = Chapter(self, CurrentChapter["id"])
-						Buffer.set_volume(CurrentChapter["tome"])
-						Buffer.set_number(CurrentChapter["chapter"])
-						Buffer.set_name(Name)
-						Buffer.set_is_paid(CurrentChapter["is_paid"])
-						Buffer.set_workers(Translators)
-
-						if self.settings.custom.add_free_publication_date and Buffer.is_paid:
-							Buffer.extra_data.set("free-publication-date", CurrentChapter["pub_date"])
-
-						CurrentBranch.add_chapter(Buffer)
-
-				else:
-					self.portals.request_error(Response, "Unable to request chapter.", exception = False)
-
-			CurrentBranch.reverse()
-			Title.data.add_branch(CurrentBranch)
-
-	def __get_slides(self, chapter: Chapter) -> list[ImageData]:
-		"""
-		Получает данные о слайдах главы.
-
-		:param chapter: Глава.
-		:type chapter: Chapter
-		:return: Список данных слайдов.
-		:rtype: list[ImageData]
-		"""
-
-		Slides: list[ImageData] = []
-
-		if chapter.is_paid and self._IsPaidChaptersLocked:
+		if chapter.is_paid and self.is_paid_chapters_locked:
 			self.portals.chapter_skipped(chapter)
-			return Slides
+			return ()
 
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/{chapter.id}/")
+		response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/{chapter.id}/")
 
-		if Response.ok and Response.json:
-			Data = Response.json
-			SlidesData: list[dict] = MergeLists(Data["pages"])
+		if not response.ok or not response.json:
+			self.portals.request_error(response, "Unable to request chapter content.")
 
-			if not SlidesData:
-				Slides = self.__try_get_chapter_from_exmanga(chapter.id)
-				if Slides: return Slides
+		data: dict = response.json
+		slides_data: list[dict] = MergeLists(data["pages"])
 
-				if chapter.is_paid:
-					self._IsPaidChaptersLocked = False # DEBUG
-					self.portals.printer.debug("Paid chapters locked. All will be skipped.")
+		if not slides_data:
+			slides = self.__try_get_chapter_from_exmanga(chapter.id)
 
-				self.portals.chapter_skipped(chapter)
-				return []
+			if slides:
+				return tuple(slides)
 
-			for SlideData in SlidesData:
-				Link = SlideData["link"]
-				Width, Height = SlideData["width"], SlideData["height"]
-				Buffer = ImageData(Link)
-				Buffer.create_resolution(Width, Height)
-				Slides.append(Buffer)
+			if chapter.is_paid:
+				self._is_paid_chapters_locked = True
+				self.portals.printer.debug("Paid chapters locked. All will be skipped.")
 
-		else: self.portals.request_error(Response, "Unable to request chapter content.", exception = False)
+			self.portals.chapter_skipped(chapter)
+			return ()
 
-		return Slides
+		for slide_data in slides_data:
+			link: str = slide_data["link"]
+			width, height = slide_data["width"], slide_data["height"]
+			buffer = ImageData(link, ImageType.Slide)
+			buffer.create_resolution(width, height)
+			slides.append(buffer)
 
-	def __get_type(self, data: dict) -> Types | None:
+		return tuple(slides)
+
+	def __get_title_type(self, data: dict):
 		"""
-		Определяет тип тайтла.
+		Get title type.
 
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		:return: Тип тайтла.
-		:rtype: Types | None
+		Args:
+			data (dict): Title data.
 		"""
 
-		Type = None
-		TypesDeterminations = {
-			"Манга": Types.manga,
-			"Манхва": Types.manhwa,
-			"Маньхуа": Types.manhua,
-			"Рукомикс": Types.russian_comic,
-			"Западный комикс": Types.western_comic,
-			"Индонезийский комикс": Types.indonesian_comic,
+		determinations: dict[str, Type] = {
+			"Манга": Type.manga,
+			"Манхва": Type.manhwa,
+			"Маньхуа": Type.manhua,
+			"Рукомикс": Type.russian_comic,
+			"Западный комикс": Type.western_comic,
+			"Индонезийский комикс": Type.indonesian_comic,
 		}
-		SiteType = data["type"]["name"]
-		if SiteType in TypesDeterminations.keys(): Type = TypesDeterminations[SiteType]
 
-		return Type
+		type_value: str = data["type"]["name"]
+
+		if type_value in determinations:
+			title_type: Type = determinations[type_value]
+			self.title.data.set_title_type(title_type)
 
 	def __try_get_chapter_from_exmanga(self, chapter_id: int) -> list[ImageData]:
 		"""
-		Пробует получить слайды главы через расширение **ExManga**.
+		Try to get chapter slides from ExManga if extension enabled.
 
-		:param chapter_id: ID главы.
-		:type chapter_id: int
-		:return: Список слайдов главы.
-		:rtype: list[ImageData]
+		Args:
+			chapter_id (int): Chapter ID.
+
+		Returns:
+			list[ImageData]: Slides data.
 		"""
 
-		if not self.source_operator.extensions.is_enabled(extensions.ExManga):
+		if not self.exmanga:
 			return []
 
-		slides: list[ImageData] = self.__ExManga.get_slides_data(chapter_id)
+		slides: list[ImageData] = self.exmanga.get_slides_data(chapter_id)
 
 		if not slides:
 			return slides
 
-		title = cast("Manga", self.title)
 		filtered_slides: list[ImageData] = []
 
 		for index in range(len(slides)):
 			slide: ImageData = slides[index]
-			result = self.__ExManga.download_slide(title, chapter_id, slide)
+			result = self.exmanga.download_slide(self.title, chapter_id, slide)
 
 			if result.filtered_by:
 				filtered_slides.append(slide)
@@ -261,183 +201,3 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 			slides.remove(slide)
 
 		return slides
-
-	#==========================================================================================#
-	# >>>>> PROTECTED METHODS ПАРСИНГА <<<<< #
-	#==========================================================================================#
-
-	def _get_age_limit(self, data: dict) -> int:
-		"""
-		Определяет возрастной рейтинг.
-
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		:return: Возрастной рейтинг.
-		:rtype: int
-		"""
-
-		Ratings = {
-			0: 0,
-			1: 16,
-			2: 18,
-		}
-		Rating = Ratings[data["age_limit"]["id"]]
-
-		return Rating
-
-	def _get_covers(self, data: dict):
-		"""
-		Парсит данные обложек.
-
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		"""
-
-		title = cast("Manga", self.title)
-
-		covers_data: dict[str, str] = data["cover"]
-		covers: list[ImageData] = []
-
-		if self.settings.custom.only_best_cover:
-			best_cover_uri = covers_data["high"]
-			cover = ImageData(f"https://{self.manifest.domain}{best_cover_uri}")
-			covers.append(cover)
-
-		else:
-			for cover_uri in reversed(covers_data.values()):
-				cover = ImageData(f"https://{self.manifest.domain}{cover_uri}")
-				covers.append(cover)
-
-
-		for cover in covers:
-			if cover.link.endswith("/media/None"):
-				covers.remove(cover)
-
-		title.data.set_covers(covers)
-
-	def _get_description(self, data: dict) -> str | None:
-		"""
-		Получает описание тайтла.
-
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		:return: Описание тайтла.
-		:rtype: str | None
-		"""
-
-		Description = None
-
-		if data.get("description"):
-			Description = HTML(data["description"]).plain_text
-			Description = Description.replace("\r", "").replace("\xa0", " ").strip()
-			Description = remove_recurring_substrings(Description, "\n")
-			Description = zerotify(Description)
-
-		return Description
-
-	def _get_genres(self, data: dict) -> list[str]:
-		"""
-		Получает жанры.
-
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		:return: Список жанров.
-		:rtype: list[str]
-		"""
-
-		Genres = []
-		for Genre in data["genres"]: Genres.append(Genre["name"])
-
-		return Genres
-
-	def _get_persons(self) -> list[Person]:
-		"""
-		Получает список персонажей.
-
-		:return: Список персонажей.
-		:rtype: list[Person]
-		"""
-
-		Title = cast("Manga", self.title)
-
-		Persons = []
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.id}/characters/?")
-
-		if Response.ok and Response.json:
-
-			for PersonData in Response.json:
-				Buffer = Person(PersonData["name"])
-				Buffer.add_another_name(PersonData["alt_name"])
-
-				if PersonData["cover"]:
-					Buffer.add_image(ImageData(f"https://{self.manifest.domain}/media/" + PersonData["cover"]["high"]))
-					Buffer.add_image(ImageData(f"https://{self.manifest.domain}/media/" + PersonData["cover"]["mid"]))
-
-				Buffer.set_description(HTML(PersonData["description"]).plain_text if PersonData["description"] else None)
-				Persons.append(Buffer)
-
-		return Persons
-
-	def _get_status(self, data: dict) -> Statuses | None:
-		"""
-		Определяет статус тайтла.
-
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		:return: Статус.
-		:rtype: Statuses | None
-		"""
-
-		Status = None
-		StatusesDetermination = {
-			"Продолжается": Statuses.ongoing,
-			"Закончен": Statuses.completed,
-			"Анонс": Statuses.announced,
-			"Заморожен": Statuses.dropped,
-			"Нет переводчика": Statuses.dropped,
-			"Не переводится (лицензировано)": Statuses.dropped,
-		}
-		SiteStatusIndex = data["status"]["name"]
-		if SiteStatusIndex in StatusesDetermination.keys(): Status = StatusesDetermination[SiteStatusIndex]
-
-		return Status
-
-	def _get_tags(self, data: dict) -> list[str]:
-		"""
-		Получает список тегов.
-
-		:param data: Словарь данных тайтла.
-		:type data: dict
-		:return: Cписок тегов.
-		:rtype: list[str]
-		"""
-
-		Tags = []
-		for Tag in data["categories"]: Tags.append(Tag["name"])
-
-		return Tags
-
-	def _get_title_data(self) -> "WebResponse":
-		"""
-		Запрашивает данные тайтла.
-
-		Также при ошибке с кодом 404 пытается обновить алиас тайтла, если включено расширение **slugger**.
-
-		:return: Контейнер ответа на запрос.
-		:rtype: WebResponse
-		"""
-
-		Title = cast("Manga", self.title)
-		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.slug}/")
-
-		if Response.status_code == 404 and self.source_operator.extensions.is_enabled(extensions.Slugger):
-
-			if Title.load(Title.data.slug):
-				self.portals.printer.emit("Loaded local file.")
-			else:
-				return Response
-
-			if self.__Slugger.update_title_slug(Title):
-				return self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{Title.data.slug}/")
-
-		return Response

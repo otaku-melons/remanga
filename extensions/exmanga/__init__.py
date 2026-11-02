@@ -4,16 +4,15 @@ from urllib.parse import urlparse
 import orjson
 
 from dublib.functions.filesystem import text
-from dublib.web_requestor import WebConfig, WebLibs, WebRequestor
+from dublib.web_requestor import WebConfig, WebLib, WebRequestor
 from dublib.web_requestor.config.authorization import Bearer
 
 from melon.core.base.extensions import BaseExtension
-from melon.core.base.formats.base_format.enums import ImagesTypes
-from melon.core.base.parsers.components.images_downloader import (
+from melon.core.base.parser.components.images_downloader import (
 	ImageDownloadingResult,
 	ImagesDownloader,
 )
-from melon.core.base.structs.image import ImageData
+from melon.core.base.structs.image import ImageData, ImageType
 
 from ...modules import functions
 from .options import Options
@@ -30,7 +29,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 	"""Расширение."""
 
 	#==========================================================================================#
-	# >>>>> СВОЙСТВА <<<<< #
+	# >>>>> PROPERTIES <<<<< #
 	#==========================================================================================#
 
 	@property
@@ -184,7 +183,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		"""
 
 		Config = WebConfig()
-		Config.select_lib(WebLibs.requests)
+		Config.select_lib(WebLib.requests)
 		Config.set_retries_count(self.source_operator.settings.network.retries)
 		Config.headers.generate_user_agent(("desktop",))
 		Config.headers.automatically_accept_client_hints(True)
@@ -228,7 +227,7 @@ class Extension(BaseExtension["SourceOperator", Options]):
 		if self.__is_exmanga_stub(Link):
 			return None
 
-		Buffer = ImageData(Link)
+		Buffer = ImageData(Link, ImageType.Slide)
 		Buffer.create_resolution(Width, Height)
 
 		return Buffer
@@ -294,19 +293,18 @@ class Extension(BaseExtension["SourceOperator", Options]):
 
 		Future: ImageDownloadingFuture | None = None
 		if self.system_objects.options.DEBUG:
-			Future = self.portals.printer.templates.images.start_downloading(slide.filename, ImagesTypes.Slide)
+			Future = self.portals.printer.templates.images.start_downloading(slide.filename, ImageType.Slide)
 
 		self.requestor.config.headers.authorization.disable()
 
-		Result = self.__images_downloader.download_image(
-			url = slide.link,
-			directory = ChapterSlidesDirectory,
+		Result = self.__images_downloader.download_image_from_data(
+			data = slide,
+			title = title,
 			force_mode = force_mode,
 		)
 
-		if Future: Future.result(Result)
-		if Result.path: slide.set_link(Result.path.resolve().as_uri())
-		if not slide.resolution: slide.set_resolution(Result.resolution)
+		if Future:
+			Future.result(Result)
 
 		return Result
 
