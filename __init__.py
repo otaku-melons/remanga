@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from dublib.web_requestor.config.authorization import Bearer
 
+from melon.core.base.parser.enums import ContentType
 from melon.core.base.source_operator import BaseSourceOperator
 
 from . import extensions
@@ -149,6 +150,20 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		"""
 
 		return CustomSettingsModel
+
+	@override
+	def _get_content_type_by_slug(self, slug: str) -> ContentType:
+		"""
+		Get content type by title slug.
+
+		Args:
+			slug (str): Title slug.
+
+		Returns:
+			ContentType: Content type.
+		"""
+
+		return ContentType.Manga
 
 	@override
 	def _is_title_exists(self, slug: str) -> bool | None:

@@ -357,6 +357,6 @@ class ParserCore:
 		soup = BeautifulSoup(description, "html.parser")
 
 		for tag in soup.find_all("p", recursive = False):
-			paragraphs.extend(self.html_parser.parse_paragraphs(tag))
+			paragraphs.extend(self.html_parser.parse_paragraphs(tag, allow_footnotes = False))
 
 		return tuple(paragraphs)

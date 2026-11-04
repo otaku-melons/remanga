@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For visual categorization of changes emojis are used in accordance with [gitmoji](https://gitmoji.dev).
 
-## [2.7.0]
+## [2.7.0] - 2026-11-04
 
 ### ✨ Added
-- Slugger extension now can work with ranobe.
+- Compatibility with `melon>=1.0.0-rc.7`.
+- **ID_Checker** and **Slugger** extensions now can work with ranobe.
 
 ### 🎨 Changed
 - Main parser logic separated into core for using in childrens.
