@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Literal, override
 
-from melon.core.base.extensions import BaseExtension
-
+from ..base import BaseModule
 from .enums import BookmarkCreatioinResult
 
 if TYPE_CHECKING:
@@ -9,8 +8,8 @@ if TYPE_CHECKING:
 
 	from ... import SourceOperator as SourceOperator
 
-class Extension(BaseExtension["SourceOperator"]):
-	"""Расширение."""
+class ID_Checker(BaseModule):
+	"""Titles existing checker by ID."""
 
 	#==========================================================================================#
 	# >>>>> PROPERTIES <<<<< #

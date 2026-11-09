@@ -6,14 +6,14 @@ from melon.core.base.formats.manga.enums import Type
 from melon.core.base.parser.presets import BaseMangaParser
 from melon.core.base.structs.image import ImageData, ImageType
 
-from . import extensions
 from .modules.core import ParserCore
+from .modules.exmanga import ExManga
 from .modules.functions import MergeLists
+from .modules.slugger import Slugger
 
 if TYPE_CHECKING:
 	from . import SourceOperator as SourceOperator
-	from .custom import CustomSettingsModel as CustomSettingsModel
-	from .extensions.cards import CardData
+	from .settings.custom import CustomSettingsModel as CustomSettingsModel
 
 class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	"""Parser."""
@@ -25,8 +25,8 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		return self.__core
 
 	@property
-	def exmanga(self) -> extensions.ExManga | None:
-		"""Extension: ExManga parser."""
+	def exmanga(self) -> ExManga | None:
+		"""ExManga slides receiver."""
 
 		return self.__exmanga
 
@@ -37,8 +37,8 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		return self.__is_paid_chapters_locked
 
 	@property
-	def slugger(self) -> extensions.Slugger | None:
-		"""Extension: title slug updater."""
+	def slugger(self) -> Slugger:
+		"""Title slug updater."""
 
 		return self.__core.slugger
 
@@ -76,28 +76,13 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		self.__get_title_type(data)
 
-		if self.source_operator.extensions.is_enabled(extensions.Cards):
-			self.title.data.set_extra_data("cards", [], target_key = "persons")
-
-			cards: extensions.Cards = self.source_operator.run_extension(extensions.Cards, force = True)
-			cards_data: tuple[CardData, ...] = cards.get_cards_data(data["id"])
-
-			self.portals.printer.emit(f"Cards parsed {len(cards_data)}.")
-			self.title.data.set_extra_data("cards", [card_data.to_dict() for card_data in cards_data])
-
-			cards.download_cards(self.title.used_filename, cards_data)
-			removed_images_count: int = cards.clear_unused_cards_images(self.title.used_filename, cards_data)
-
-			if removed_images_count:
-				self.portals.printer.emit(f"Unused cards images removed: {removed_images_count}.")
-
 	@override
 	def _post_init(self):
 		"""Execute after instance initialization."""
 
 		self.__is_paid_chapters_locked: bool = False
 		self.__core: ParserCore = ParserCore(self, Chapter)
-		self.__exmanga: extensions.ExManga | None = self.source_operator.run_extension(extensions.ExManga)
+		self.__exmanga: ExManga | None = ExManga(self.source_operator) if self.settings.custom.exmanga.email and self.settings.custom.exmanga.password else None
 
 	def __get_slides(self, chapter: Chapter) -> tuple[ImageData, ...]:
 		"""

@@ -1,14 +1,15 @@
 from typing import TYPE_CHECKING
 
-from melon.core.base.extensions import BaseExtension
 from melon.core.base.structs.title import TitleDescriptor
+
+from .base import BaseModule
 
 if TYPE_CHECKING:
 	from melon.core.base.formats.base_format.data import BaseTitleData
 
-	from ... import SourceOperator as SourceOperator
+	from .. import SourceOperator as SourceOperator
 
-class Extension(BaseExtension["SourceOperator"]):
+class Slugger(BaseModule):
 	"""Title slug updater."""
 
 	def __search_by_name(self, name: str) -> list[TitleDescriptor]:
@@ -60,7 +61,7 @@ class Extension(BaseExtension["SourceOperator"]):
 
 	def get_title_descriptor_by_name(self, data: "BaseTitleData") -> TitleDescriptor | None:
 		"""
-		GEt title descriptor by name.
+		Get title descriptor by name.
 
 		Args:
 			data (BaseTitleData): Title data.

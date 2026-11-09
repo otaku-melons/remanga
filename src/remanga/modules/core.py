@@ -8,7 +8,7 @@ from melon.core.base.formats.base_format.person import Person
 from melon.core.base.structs.image import ImageData, ImageType
 from melon.sdk.html_parser import HyperTextParser
 
-from .. import extensions
+from .slugger import Slugger
 
 if TYPE_CHECKING:
 	from collections.abc import Callable
@@ -40,7 +40,7 @@ class ParserCore:
 		self._chapter_type: type[BaseChapter] = chapter_type
 
 		self._html_parser: HyperTextParser = HyperTextParser(self.settings.common.pretty)
-		self._slugger: extensions.Slugger | None = self.source_operator.run_extension(extensions.Slugger)
+		self._slugger: Slugger = Slugger(self.source_operator)
 
 	def get_age_limit(self, data: dict):
 		"""
@@ -328,7 +328,7 @@ class ParserCore:
 		return self._parser.settings
 
 	@property
-	def slugger(self) -> extensions.Slugger | None:
+	def slugger(self) -> Slugger:
 		"""Slugs updater extension."""
 
 		return self._slugger

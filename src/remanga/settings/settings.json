@@ -10,12 +10,11 @@
 	"custom": {
 		"token": "",
 		"add_free_publication_date": false,
-		"only_best_cover": false
-	},
-	"extensions": {
+		"only_best_cover": false,
 		"exmanga": {
 			"email": "",
-			"password": ""
+			"password": "",
+			"domain": "exmanga.org"
 		}
 	}
 }

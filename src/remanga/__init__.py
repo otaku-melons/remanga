@@ -9,8 +9,8 @@ from dublib.web_requestor.config.authorization import Bearer
 from melon.core.base.parser.enums import ContentType
 from melon.core.base.source_operator import BaseSourceOperator
 
-from . import extensions
-from .custom import CustomSettingsModel
+from .modules.id_checker import ID_Checker
+from .settings.custom import CustomSettingsModel
 
 if TYPE_CHECKING:
 	from melon.core.base.parser.components.images_downloader import (
@@ -42,7 +42,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		MAX_CATALOG_PAGE = 999
 
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&ordering=-score&page={Page}&{filters}")
+			Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&ordering=-score&page={Page}&{filters}")
 
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
@@ -86,7 +86,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 		TargetDateString: str = TargetDate.strftime("%Y-%m-%d")
 
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDateString}&last_chapter_uploaded_lte={NowString}&ordering=-score&page={Page}")
+			Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/search/catalog/?count=30&last_chapter_uploaded_gte={TargetDateString}&last_chapter_uploaded_lte={NowString}&ordering=-score&page={Page}")
 
 			if Response.status_code == 200 and Response.json:
 				PageContent = Response.json["results"]
@@ -126,16 +126,15 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	@override
 	def _collect_slugs(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Sequence[str]:
 		"""
-		Собирает список алиасов тайтлов по заданным параметрам.
+		Collect slugs by parameters.
 
-		:param period: Количество часов до текущего момента, составляющее период получения данных.
-		:type period: int | None
-		:param filters: Строка, описывающая параметры фильтрации.
-		:type filters: str | None
-		:param pages: Requested pages count.
-		:type pages: int | None
-		:return: Набор собранных алиасов.
-		:rtype: Sequence[str]
+		Args:
+			period (int | None): Period in hours.
+			filters (str | None): Filters, specified by parser.
+			pages (int | None, optional): Catalog pages count.
+
+		Returns:
+			Sequence[str]: Collected slugs.
 		"""
 
 		return self._collect_catalog(filters, pages) if not period else self._collect_updates(period, pages)
@@ -143,10 +142,10 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	@override
 	def _export_custom_settings_model(self) -> type[CustomSettingsModel]:
 		"""
-		Экспортирует модель кастомных настроек парсера. Модель должна быть унаследована от `CustomSettingsModel`.
+		Export custom parser settings [pydantic](https://github.com/pydantic/pydantic) model.
 
-		:return: Модель кастомных настроек парсера.
-		:rtype: type[CustomSettingsModel]
+		Returns:
+			type[CustomSettingsModel]: Custom parser settings model.
 		"""
 
 		return CustomSettingsModel
@@ -168,27 +167,29 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	@override
 	def _is_title_exists(self, slug: str) -> bool | None:
 		"""
-		Проверяет, существует ли тайтл на сервере.
+		Check is title exists.
 
-		:param slug: Алиас тайтла.
-		:type slug: str
-		:return: Возвращает статус существования файла на сервере или `None` при невозможности проверки.
-		:rtype: bool | None
+		Args:
+			slug (str): Title slug.
+
+		Returns:
+			bool | None: Title existing status or `None` if unable check.
 		"""
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{slug}/")
 
-		if Response.ok: return True
+		if Response.ok:
+			return True
 		elif Response.status_code == 404:
-			if not self.extensions.is_enabled(extensions.ID_Checker): return False
+			if not self.extensions_manager.is_available("remanga_idchecker"): return False
 
 			TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
 			if not TitleID: return False
 
-			if self.__id_checker:
-				return self.__id_checker.is_title_exists_by_id(TitleID)
+			return self.__id_checker.is_title_exists_by_id(TitleID)
 
-		else: self.portals.request_error(Response, "Failed to check title existing.")
+		else:
+			self.portals.request_error(Response, "Failed to check title existing.")
 
 		return
 
@@ -196,7 +197,7 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	def _post_init(self):
 		"""Execute after instance initialization."""
 
-		self.__id_checker: extensions.ID_Checker | None = self.run_extension(extensions.ID_Checker)
+		self.__id_checker: ID_Checker = ID_Checker(self)
 
 		# Доступ к этим доменам, вероятно, возможен только с территории стран СНГ.
 		# Также эти домены не требуют авторизации.
@@ -207,21 +208,21 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 	@override
 	def _temp_image(self, url: str, force_mode: bool = False) -> "ImageDownloadingResult":
 		"""
-		Скачивает изображение по ссылке и сохраняет во временный каталог парсера.
+		Download image into parser temporary directory.
 
-		:param url: Ссылка на изображение.
-		:type url: str
-		:param force_mode: Переключает режим перезаписи существующих изображений.
-		:type force_mode: bool
-		:return: Результат скачивания изображения.
-		:rtype: ImageDownloadingResult
+		Args:
+			url (str): Image URL.
+			force_mode (bool): Condition: is image overwriting enabled.
+
+		Returns:
+			ImageDownloadingResult: Image downloading result.
 		"""
 
 		if urlparse(url).netloc in self.__russian_domains:
 			self.images_downloader.requestor.config.headers.authorization.disable()
 
 		try:
-			return self._ImagesDownloader.temp_image(url, force_mode = force_mode)
+			return self.images_downloader.temp_image(url, force_mode = force_mode)
 
 		finally:
 			self.images_downloader.requestor.config.headers.authorization.enable()
