@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For visual categorization of changes emojis are used in accordance with [gitmoji](https://gitmoji.dev).
 
+## [2.8.0]
+
+### 🎨 Changed
+- Parser now distributes as Python package.
+- `ID_checker`, `ExManga` and `Slugger` bundled as modules, not extensions.
+
 ## [2.7.0] - 2026-11-04
 
 ### ✨ Added

@@ -26,3 +26,12 @@ ___
 "only_best_cover": false
 ```
 Save in title data only cover image with best resolution. Also enable only best cover image saving in `covers` extension.
+___
+```JSON
+"exmanga": {
+    "email": "",
+    "password": "",
+    "domain": "exmanga.org"
+}
+```
+This block allows to receive slides images from [ExManga](https://exmanga.org) service, which require authorization.
