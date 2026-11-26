@@ -8,8 +8,6 @@ from melon.core.base.formats.base_format.person import Person
 from melon.core.base.structs.image import ImageData, ImageType
 from melon.sdk.html_parser import HyperTextParser
 
-from .slugger import Slugger
-
 if TYPE_CHECKING:
 	from collections.abc import Callable
 
@@ -23,6 +21,7 @@ if TYPE_CHECKING:
 	from melon.core.system_objects.printer import Portals
 
 	from .. import CustomSettingsModel, SourceOperator
+	from .bookmarks import Bookmarks
 
 class ParserCore:
 	"""Content type independent parser core."""
@@ -40,7 +39,6 @@ class ParserCore:
 		self._chapter_type: type[BaseChapter] = chapter_type
 
 		self._html_parser: HyperTextParser = HyperTextParser(self.settings.common.pretty)
-		self._slugger: Slugger = Slugger(self.source_operator)
 
 	def get_age_limit(self, data: dict):
 		"""
@@ -233,16 +231,16 @@ class ParserCore:
 
 		response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self.data.slug}/")
 
-		if response.ok or not self.slugger:
+		if response.ok or not self.source_operator.system_objects.options.USE_CACHE:
 			return response
 
-		if self.title.load(self.data.slug):
-			self.portals.printer.emit("Loaded local file.")
-		else:
-			return response
+		if title_id := self.source_operator.shared_data.journal.get_id_by_slug(self.data.slug):
+			slug: str | None = self.bookmarks.get_title_slug_by_id(title_id)
 
-		if self.slugger.update_title_slug(self.data):
-			return self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self.data.slug}/")
+			if slug:
+				self.data.set_slug(slug)
+				self.portals.printer.emit(f"Slug updated: [b]{slug}[/b].")
+				response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self.data.slug}/")
 
 		return response
 
@@ -286,6 +284,12 @@ class ParserCore:
 		return data
 
 	@property
+	def bookmarks(self) -> "Bookmarks":
+		"""Bookmarks operator."""
+
+		return self.source_operator.bookmarks
+
+	@property
 	def data(self) -> "BaseTitleData":
 		"""Title data."""
 
@@ -326,12 +330,6 @@ class ParserCore:
 		"""Parser settings."""
 
 		return self._parser.settings
-
-	@property
-	def slugger(self) -> Slugger:
-		"""Slugs updater extension."""
-
-		return self._slugger
 
 	@property
 	def source_operator(self) -> "SourceOperator":

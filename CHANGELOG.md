@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For visual categorization of changes emojis are used in accordance with [gitmoji](https://gitmoji.dev).
 
-## [2.8.0]
+## [2.8.1]
+
+### 🎨 Changed
+- Optimized titles slugs updating (using Melon cache and bookmarks).
+
+### 🔥 Removed
+- Slugs updater `Slugger` (replaceb by `Bookmarks`).
+
+## [2.8.0] - 2026-11-10
 
 ### 🎨 Changed
 - Parser now distributes as Python package.

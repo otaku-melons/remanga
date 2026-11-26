@@ -9,7 +9,7 @@ from dublib.web_requestor.config.authorization import Bearer
 from melon.core.base.parser.enums import ContentType
 from melon.core.base.source_operator import BaseSourceOperator
 
-from .modules.id_checker import ID_Checker
+from .modules.bookmarks import Bookmarks
 from .settings.custom import CustomSettingsModel
 
 if TYPE_CHECKING:
@@ -18,11 +18,22 @@ if TYPE_CHECKING:
 	)
 
 class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
-	"""Оператор источника."""
+	"""Source operator."""
 
-	#==========================================================================================#
-	# >>>>> PROTECTED METHODS <<<<< #
-	#==========================================================================================#
+	@override
+	def _authorize(self):
+		"""
+		Выполняется после `_InitializeRequestor()` и обёрнут для отлова исключений `TokenExpiredError`.
+
+		Используется для установки авторизации на основе заголовка _Authorization_.
+		"""
+
+		Token: str | None = self.settings.custom.token
+		if not Token: return
+
+		Authorizator = Bearer()
+		Authorizator.set_token(Token)
+		self.requestor.config.headers.authorization.set_authorization_method(Authorizator)
 
 	def _collect_catalog(self, filters: str | None = None, pages: int | None = None) -> list[str]:
 		"""
@@ -59,6 +70,22 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 			else: self.portals.request_error(Response, "Unable to request catalog.")
 
 		return Slugs
+
+	@override
+	def _collect_slugs(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Sequence[str]:
+		"""
+		Collect slugs by parameters.
+
+		Args:
+			period (int | None): Period in hours.
+			filters (str | None): Filters, specified by parser.
+			pages (int | None, optional): Catalog pages count.
+
+		Returns:
+			Sequence[str]: Collected slugs.
+		"""
+
+		return self._collect_catalog(filters, pages) if not period else self._collect_updates(period, pages)
 
 	def _collect_updates(self, period: int, pages: int | None = None) -> list[str]:
 		"""
@@ -104,41 +131,6 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		return Slugs
 
-	#==========================================================================================#
-	# >>>>> OVERRIDDEN METHODS <<<<< #
-	#==========================================================================================#
-
-	@override
-	def _authorize(self):
-		"""
-		Выполняется после `_InitializeRequestor()` и обёрнут для отлова исключений `TokenExpiredError`.
-
-		Используется для установки авторизации на основе заголовка _Authorization_.
-		"""
-
-		Token: str | None = self.settings.custom.token
-		if not Token: return
-
-		Authorizator = Bearer()
-		Authorizator.set_token(Token)
-		self.requestor.config.headers.authorization.set_authorization_method(Authorizator)
-
-	@override
-	def _collect_slugs(self, period: int | None = None, filters: str | None = None, pages: int | None = None) -> Sequence[str]:
-		"""
-		Collect slugs by parameters.
-
-		Args:
-			period (int | None): Period in hours.
-			filters (str | None): Filters, specified by parser.
-			pages (int | None, optional): Catalog pages count.
-
-		Returns:
-			Sequence[str]: Collected slugs.
-		"""
-
-		return self._collect_catalog(filters, pages) if not period else self._collect_updates(period, pages)
-
 	@override
 	def _export_custom_settings_model(self) -> type[CustomSettingsModel]:
 		"""
@@ -180,24 +172,23 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		if Response.ok:
 			return True
-		elif Response.status_code == 404:
-			if not self.extensions_manager.is_available("remanga_idchecker"): return False
 
-			TitleID: int | None = self.shared_data.journal.get_id_by_slug(slug)
-			if not TitleID: return False
+		if Response.status_code == 404:
+			title_id: int | None = self.shared_data.journal.get_id_by_slug(slug)
 
-			return self.__id_checker.is_title_exists_by_id(TitleID)
+			if not title_id:
+				return False
+
+			return self.bookmarks.is_title_exists_by_id(title_id)
 
 		else:
 			self.portals.request_error(Response, "Failed to check title existing.")
-
-		return
 
 	@override
 	def _post_init(self):
 		"""Execute after instance initialization."""
 
-		self.__id_checker: ID_Checker = ID_Checker(self)
+		self.__bookmarks: Bookmarks = Bookmarks(self)
 
 		# Доступ к этим доменам, вероятно, возможен только с территории стран СНГ.
 		# Также эти домены не требуют авторизации.
@@ -226,3 +217,9 @@ class SourceOperator(BaseSourceOperator[CustomSettingsModel]):
 
 		finally:
 			self.images_downloader.requestor.config.headers.authorization.enable()
+
+	@property
+	def bookmarks(self) -> Bookmarks:
+		"""Bookmarks operator."""
+
+		return self.__bookmarks

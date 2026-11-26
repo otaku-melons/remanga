@@ -9,7 +9,6 @@ from melon.core.base.structs.image import ImageData, ImageType
 from .modules.core import ParserCore
 from .modules.exmanga import ExManga
 from .modules.functions import MergeLists
-from .modules.slugger import Slugger
 
 if TYPE_CHECKING:
 	from . import SourceOperator as SourceOperator
@@ -35,12 +34,6 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		"""Condition: is paid chapter locked."""
 
 		return self.__is_paid_chapters_locked
-
-	@property
-	def slugger(self) -> Slugger:
-		"""Title slug updater."""
-
-		return self.__core.slugger
 
 	@override
 	def _amend(self, branch: Branch, chapter: Chapter) -> str | None:
@@ -70,7 +63,7 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 	@override
 	def _parse(self):
-		"""Parse title data witchout chapters content."""
+		"""Parse title data without chapters content."""
 
 		data: dict = self.core.parse_main_data()
 

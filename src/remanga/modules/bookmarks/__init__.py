@@ -1,75 +1,29 @@
 from typing import TYPE_CHECKING, Literal, override
 
+from pydantic import TypeAdapter
+
 from ..base import BaseModule
 from .enums import BookmarkCreatioinResult
+from .models import BookmarksGroupModel, BookmarkTitleModel
 
 if TYPE_CHECKING:
 	from dublib.web_requestor import WebRequestor, WebResponse
 
 	from ... import SourceOperator as SourceOperator
 
-class ID_Checker(BaseModule):
-	"""Titles existing checker by ID."""
-
-	#==========================================================================================#
-	# >>>>> PROPERTIES <<<<< #
-	#==========================================================================================#
-
-	@property
-	def requestor(self) -> "WebRequestor":
-		"""Менеджер запросов."""
-
-		return self.source_operator.requestor
-
-	#==========================================================================================#
-	# >>>>> PRIVATE METHODS <<<<< #
-	#==========================================================================================#
-
-	def __GetMessageFromResponse(self, response: "WebResponse") -> str | None:
-		"""
-		Пытается получить сообщение из ключа _msg_ ответа на запрос.
-
-		:param response: Ответ на запрос.
-		:type response: WebResponse
-		:return: Сообщение или `None` при его отсутствии.
-		:rtype: str | None
-		"""
-
-		Data: dict | None = response.json
-		if not Data: return None
-
-		return Data.get("msg")
-
-	def __CheckAuthorization(self):
-		"""Проверяет наличие токена для доступа к системе закладок."""
-
-		if not self.source_operator.settings.custom.token:
-			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
-
-	#==========================================================================================#
-	# >>>>> OVERRIDABLE METHODS <<<<< #
-	#==========================================================================================#
-
-	@override
-	def _post_init(self):
-		"""Execute after instance initialization."""
-
-		self.USED_BOOKMARKS_GROUP: Literal["Melon"] = "Melon"
-
-	#==========================================================================================#
-	# >>>>> PUBLIC METHODS <<<<< #
-	#==========================================================================================#
+class Bookmarks(BaseModule):
+	"""Bookmarks operator."""
 
 	def add_bookmark(self, title_id: int, group_id: int) -> BookmarkCreatioinResult:
 		"""
-		Добавляет тайтл в закладки.
+		Add bookmark.
 
-		:param title_id: ID тайтла.
-		:type title_id: int
-		:param group_id: ID группы закладок.
-		:type group_id: int
-		:return: Результаты добавления закладки.
-		:rtype: BookmarkCreatioinResult
+		Args:
+			title_id (int): Title ID.
+			group_id (int): Bookmarks group ID.
+
+		Returns:
+			BookmarkCreatioinResult: Bookmark creation result.
 		"""
 
 		Data: dict = {
@@ -77,7 +31,7 @@ class ID_Checker(BaseModule):
 			"type": group_id,
 		}
 		Response = self.requestor.post(f"https://{self.manifest.domain}/api/users/bookmarks/", json = Data)
-		Message: str | None = self.__GetMessageFromResponse(Response)
+		Message: str | None = self.__get_message_from_response(Response)
 
 		for ResponseType in BookmarkCreatioinResult:
 			if ResponseType.value == Message:
@@ -87,14 +41,14 @@ class ID_Checker(BaseModule):
 
 	def create_bookmarks_group(self, user_id: int, name: str | None = None) -> int:
 		"""
-		Создаёт Группу закладок.
+		Create bookmarks group.
 
-		:param user_id: ID пользователя.
-		:type user_id: int
-		:param name: Название группы. По умолчанию берётся из атрибута `USED_BOOKMARKS_GROUP`.
-		:type name: str
-		:return: ID группы закладок.
-		:rtype: int
+		Args:
+			user_id (int): User ID.
+			name (str | None): Bookmarks group name. If `None` used default.
+
+		Returns:
+			int: Bookmarks group ID.
 		"""
 
 		Data: dict = {
@@ -115,15 +69,17 @@ class ID_Checker(BaseModule):
 
 	def get_bookmarks_groups(self, user_id: int) -> dict[int, str]:
 		"""
-		Получает группы закладок пользователя.
+		Get user bookmarks groups.
 
-		:param user_id: ID пользователя.
-		:type user_id: int
-		:return: Словарь, в котором ключ – ID группы закладок, а значение – название группы.
-		:rtype: dict[int, str]
+		Args:
+			user_id (int): User ID.
+
+		Returns:
+			dict[int, str]: Dictionary in whuch key is group ID and value is group name.
 		"""
 
-		self.__CheckAuthorization()
+		self.__check_authorization()
+
 		Bookmarks: dict[int, str] = {}
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/users/{user_id}/user_bookmarks/")
 
@@ -142,13 +98,13 @@ class ID_Checker(BaseModule):
 
 	def get_current_user_id(self) -> int:
 		"""
-		Получает ID текущего пользователя.
+		Get current user ID.
 
-		:return: ID текущего пользователя.
-		:rtype: int
+		Returns:
+			int: Current user ID.
 		"""
 
-		self.__CheckAuthorization()
+		self.__check_authorization()
 
 		Response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/users/current/")
 
@@ -158,6 +114,68 @@ class ID_Checker(BaseModule):
 
 		else:
 			return self.portals.request_error(Response, "Failed to get current user ID.")
+
+	def get_title_data_from_bookmarks_group(self, user_id: int, group_id: int, title_id: int) -> BookmarkTitleModel | None:
+		"""
+		Get title data from bookmarks group.
+
+		Args:
+			user_id (int): User ID.
+			group_id (int): Bookmarks group ID.
+			title_id (int): Title ID.
+
+		Returns:
+			BookmarkTitleModel | None: Boo,ark title data or `None` if not found.
+		"""
+
+		params: dict[str, int | str] = {
+			"type": group_id,
+			"ordering":"-date",
+			"page": 1,
+		}
+		response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/users/{user_id}/bookmarks/", params = params)
+
+		if not response.ok or not response.json:
+			self.portals.request_error(response, "Failed to get bookmarks group.")
+
+		adapter: TypeAdapter[BookmarksGroupModel] = TypeAdapter(BookmarksGroupModel)
+		model: BookmarksGroupModel = adapter.validate_python(response.json)
+
+		for bookmark in model.results:
+			if bookmark.title.id == title_id:
+				return bookmark.title
+
+	def get_title_slug_by_id(self, title_id: int) -> str | None:
+		"""
+		Get title slug by ID.
+
+		Args:
+			title_id (int): Title slug.
+
+		Returns:
+			str | None: Title slug or `None` if not found.
+		"""
+
+		self.__check_authorization()
+
+		user_id: int = self.get_current_user_id()
+		used_group_id: int = self.get_used_bookmark_group_id(user_id)
+		bookmark_status: BookmarkCreatioinResult = self.add_bookmark(title_id, used_group_id)
+
+		match bookmark_status:
+
+			case BookmarkCreatioinResult.OK | BookmarkCreatioinResult.TITLE_ALREADY_IN_GROUP:
+				title_model: BookmarkTitleModel | None = self.get_title_data_from_bookmarks_group(user_id, used_group_id, title_id)
+
+				if title_model:
+					return title_model.dir
+				else:
+					self.portals.printer.emit(f"Title {title_id} hidden. Marked as not found.")
+
+				self.remove_bookmark(title_id)
+
+			case BookmarkCreatioinResult.DENY:
+				self.portals.printer.warning("Bookmark creation denied. Checking skipped.")
 
 	def get_used_bookmark_group_id(self, user_id: int) -> int:
 		"""
@@ -187,7 +205,7 @@ class ID_Checker(BaseModule):
 		:rtype: bool | None
 		"""
 
-		self.__CheckAuthorization()
+		self.__check_authorization()
 
 		UserID: int = self.get_current_user_id()
 		UsedGroupID: int = self.get_used_bookmark_group_id(UserID)
@@ -258,3 +276,38 @@ class ID_Checker(BaseModule):
 
 		if Response.status_code != 204:
 			self.portals.request_error(Response, "Failed to remove bookmark.")
+
+	@property
+	def requestor(self) -> "WebRequestor":
+		"""Менеджер запросов."""
+
+		return self.source_operator.requestor
+
+	@override
+	def _post_init(self):
+		"""Execute after instance initialization."""
+
+		self.USED_BOOKMARKS_GROUP: Literal["Melon"] = "Melon"
+
+	def __get_message_from_response(self, response: "WebResponse") -> str | None:
+		"""
+		Пытается получить сообщение из ключа _msg_ ответа на запрос.
+
+		:param response: Ответ на запрос.
+		:type response: WebResponse
+		:return: Сообщение или `None` при его отсутствии.
+		:rtype: str | None
+		"""
+
+		Data: dict | None = response.json
+		if not Data: return None
+
+		return Data.get("msg")
+
+	def __check_authorization(self):
+		"""Проверяет наличие токена для доступа к системе закладок."""
+
+		if not self.source_operator.settings.custom.token:
+			self.portals.authorization_required("Checking title existing by bookmarks system requires authorization.")
+
+

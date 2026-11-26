@@ -1,7 +1,7 @@
 from enum import Enum
 
 class BookmarkCreatioinResult(Enum):
-	"""Результаты добавления закладки."""
+	"""Bookmark creation result."""
 
 	OK = None
 	DENY = "Нельзя добавлять тайтлы в чужие закладки"
