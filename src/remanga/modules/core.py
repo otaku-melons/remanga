@@ -239,7 +239,7 @@ class ParserCore:
 
 			if slug:
 				self.data.set_slug(slug)
-				self.portals.printer.emit(f"Slug updated: [b]{slug}[/b].")
+				self.portals.printer.emit(f"New slug: [b]{slug}[/b].")
 				response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/{self.data.slug}/")
 
 		return response

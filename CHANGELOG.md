@@ -14,6 +14,7 @@ For visual categorization of changes emojis are used in accordance with [gitmoji
 
 ### 🔥 Removed
 - Slugs updater `Slugger` (replaceb by `Bookmarks`).
+- Paid chapters blocker (implemented in Melon).
 
 ## [2.8.0] - 2026-11-10
 

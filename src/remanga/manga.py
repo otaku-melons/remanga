@@ -29,12 +29,6 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 		return self.__exmanga
 
-	@property
-	def is_paid_chapters_locked(self) -> bool:
-		"""Condition: is paid chapter locked."""
-
-		return self.__is_paid_chapters_locked
-
 	@override
 	def _amend(self, branch: Branch, chapter: Chapter) -> str | None:
 		"""
@@ -73,7 +67,6 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 	def _post_init(self):
 		"""Execute after instance initialization."""
 
-		self.__is_paid_chapters_locked: bool = False
 		self.__core: ParserCore = ParserCore(self, Chapter)
 		self.__exmanga: ExManga | None = ExManga(self.source_operator) if self.settings.custom.exmanga.email and self.settings.custom.exmanga.password else None
 
@@ -89,11 +82,6 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 		"""
 
 		slides: list[ImageData] = []
-
-		if chapter.is_paid and self.is_paid_chapters_locked:
-			self.portals.chapter_skipped(chapter)
-			return ()
-
 		response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/{chapter.id}/")
 
 		if not response.ok or not response.json:
@@ -107,10 +95,6 @@ class Parser(BaseMangaParser["SourceOperator", "CustomSettingsModel"]):
 
 			if slides:
 				return tuple(slides)
-
-			if chapter.is_paid:
-				self._is_paid_chapters_locked = True
-				self.portals.printer.debug("Paid chapters locked. All will be skipped.")
 
 			self.portals.chapter_skipped(chapter)
 			return ()
